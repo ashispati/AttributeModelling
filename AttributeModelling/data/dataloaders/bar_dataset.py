@@ -29,7 +29,7 @@ class FolkBarDataset:
         """
         self.dataset_type = dataset_type
         if is_short:
-            self.max_num_files = 10
+            self.max_num_files = 20
         else:
             self.max_num_files = 25000
         self.cur_dir = os.path.dirname(os.path.realpath(__file__))
@@ -78,17 +78,21 @@ class FolkBarDataset:
 
         # create training and testing splits
         shuffle(self.valid_filepaths)
+        if is_short:
+            self.valid_filepaths = self.valid_filepaths[:self.max_num_files]
         self.num_files = len(self.valid_filepaths)
         self.num_training = int(0.9 * self.num_files)
         self.num_testing = int(0.1 * self.num_files)
         if self.dataset_type == 'train':
             self.dataset_filepaths = self.valid_filepaths[:self.num_training]
         elif self.dataset_type == 'test':
-            self.dataset_filepaths = self.valid_filepaths[self.num_training + 1:]
+            self.dataset_filepaths = self.valid_filepaths[self.num_training:]
         self.num_dataset_files = len(self.dataset_filepaths)
 
-        # create and save dataset
+        # create path to dataset
         self.dataset_path = os.path.join(self.dataset_dir_path, self.class_name + self.dataset_type)
+        if is_short:
+            self.dataset_path += '_short'
 
     def __repr__(self):
         return self.class_name
@@ -176,6 +180,7 @@ class FolkBarDataset:
         bar_tensor_dataset = torch.cat(bar_tensor_dataset, 0)
         dataset = TensorDataset(
             bar_tensor_dataset,
+            bar_tensor_dataset  # TODO: add metadata tensor here
         )
         print('Dataset Size: ', bar_tensor_dataset.size())
         torch.save(dataset, self.dataset_path)
@@ -420,7 +425,7 @@ class FolkNBarDataset(FolkBarDataset):
             self.num_beats_per_bar = 4
         elif self.time_sig_num == 3:
             self.num_beats_per_bar =3
-        self.sequences_size = self.num_beats_per_bar * self.n_bars
+        self.seq_size_in_beats = self.num_beats_per_bar * self.n_bars
         self.pitch_range = [55, 84]
 
         # compute and save dicts
@@ -430,8 +435,10 @@ class FolkNBarDataset(FolkBarDataset):
         self.note2index_dicts = None
         self.compute_dicts()
 
-        # create and save dataset
+        # create path to dataset
         self.dataset_path = os.path.join(self.dataset_dir_path, self.class_name + self.dataset_type)
+        if is_short:
+            self.dataset_path += '_short'
 
     def __repr__(self):
         return self.class_name
@@ -522,12 +529,18 @@ class FolkNBarDataset(FolkBarDataset):
             possible_transpositions = self.all_transposition_intervals(score)
             for trans_int in possible_transpositions:
                 score_tensor = self.get_transposed_tensor(score, trans_int)
+                total_beats = int(score.highestTime)
+                if total_beats % self.num_beats_per_bar == 0:
+                    end_idx = total_beats - self.seq_size_in_beats + self.num_beats_per_bar + 1
+                else:
+                    end_idx = total_beats + self.num_beats_per_bar - total_beats % self.num_beats_per_bar
+                    end_idx += self.num_beats_per_bar - self.seq_size_in_beats + 1
                 for offset_start in range(
-                        0,
-                        int(score.highestTime),
-                        int(self.sequences_size)
+                        -self.num_beats_per_bar,
+                        end_idx,
+                        int(self.num_beats_per_bar)
                 ):
-                    offset_end = offset_start + self.sequences_size
+                    offset_end = offset_start + self.seq_size_in_beats
                     local_score_tensor = self.get_tensor_with_padding(
                         tensor=score_tensor,
                         start_tick=offset_start * self.beat_subdivisions,
@@ -545,8 +558,10 @@ class FolkNBarDataset(FolkBarDataset):
         )
         dataset = TensorDataset(
             bar_tensor_dataset,
+            bar_tensor_dataset  # TODO: add metadata tensor here
         )
         print('Sizes: ', score_tensor_dataset.size())
+        torch.save(dataset, self.dataset_path)
         return dataset
 
 

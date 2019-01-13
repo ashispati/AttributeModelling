@@ -50,7 +50,7 @@ class MeasureVAE(nn.Module):
         self.decoder_hidden_size = decoder_hidden_size
         self.decoder_dropout_prob = decoder_dropout_prob
         self.has_metadata = has_metadata
-        self.num_notes = len(dataset.note2index_dicts[0])
+        self.num_notes = len(dataset.note2index_dicts)
         print("NUMBER OF NOTES: ", self.num_notes)
         # Encoder
         self.encoder = Encoder(

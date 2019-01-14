@@ -49,7 +49,7 @@ def main(note_embedding_dim,
          train,
          ):
 
-    folk_dataset_train = FolkNBarDataset(dataset_type='test')
+    folk_dataset_train = FolkNBarDataset(dataset_type='train')
     # folk_dataset_test = FolkNBarDataset(dataset_type='test')
 
     model = MeasureVAE(

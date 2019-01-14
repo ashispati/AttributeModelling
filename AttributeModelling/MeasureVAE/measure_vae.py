@@ -85,11 +85,11 @@ class MeasureVAE(nn.Module):
         String Representation of class
         :return: string, class representation
         """
-        return f'MeasureVAE(' \
-               f'{self.dataset},' \
-               f'{self.encoder.__repr__()},' \
-               f'{self.decoder.__repr__()},' \
-               f')'
+        return 'MeasureVAE(' + \
+               self.dataset.__repr__() +  \
+               self.encoder.__repr__() + \
+               self.decoder.__repr__() + \
+               ')'
 
     def forward(self, measure_score_tensor: Variable,
                 measure_metadata_tensor: Variable, train=True):
@@ -168,7 +168,7 @@ class MeasureVAE(nn.Module):
         :return:
         """
         torch.save(self.state_dict(), self.filepath)
-        print(f'Model {self.__repr__()} saved')
+        print('Model ' + self.__repr__() + ' saved')
 
     def load(self, cpu=False):
         """
@@ -186,4 +186,4 @@ class MeasureVAE(nn.Module):
             )
         else:
             self.load_state_dict(torch.load(self.filepath))
-        print(f'Model {self.__repr__()} loaded')
+        print('Model ' + self.__repr__() + ' loaded')

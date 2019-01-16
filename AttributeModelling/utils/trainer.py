@@ -263,7 +263,7 @@ class Trainer(ABC):
                 (batch_size, seq_len)
         :return: float, loss
         """
-        criteria = nn.CrossEntropyLoss(reduction='elementwise_mean')
+        criteria = nn.CrossEntropyLoss(reduction='mean')
         batch_size, seq_len, num_notes = weights.size()
         assert (batch_size == targets.size(0))
         assert (seq_len == targets.size(1))
@@ -336,7 +336,7 @@ class Trainer(ABC):
                 (batch_size, num_measures, seq_len)
         :return: float, loss
         """
-        criteria = torch.nn.CrossEntropyLoss(reduction='elementwise_mean')
+        criteria = torch.nn.CrossEntropyLoss(reduction='mean')
         _, _, _, num_notes = weights.size()
         weights = weights.view(-1, num_notes)
         targets = targets.view(-1)

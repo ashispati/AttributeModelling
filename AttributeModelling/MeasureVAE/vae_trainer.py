@@ -5,20 +5,33 @@ from AttributeModelling.utils.trainer import Trainer
 from AttributeModelling.MeasureVAE.measure_vae import MeasureVAE
 from AttributeModelling.data.dataloaders.bar_dataset import *
 
+RHY_COMPLEXITY_COEFFS = torch.from_numpy(
+    np.array(
+        [
+            5, 1, 0.5, 2, 0.5, 1,
+            3, 1, 0.5, 2, 0.5, 1,
+            4, 1, 0.5, 2, 0.5, 1,
+            3, 1, 0.5, 2, 0.5, 1
+        ]
+    )
+)
+
 
 class VAETrainer(Trainer):
     def __init__(self, dataset,
                  model: MeasureVAE,
                  lr=1e-4):
         super(VAETrainer, self).__init__(dataset, model, lr)
+        self.beta = 0.001
 
-    def loss_and_acc_for_batch(self, batch, epoch_num=None, train=True):
+    def loss_and_acc_for_batch(self, batch, epoch_num=None, train=True, reg_loss=False):
         """
         Computes the loss and accuracy for the batch
         Must return (loss, accuracy) as a tuple, accuracy can be None
         :param batch: torch Variable,
         :param epoch_num: int, used to change training schedule
         :param train: bool, True is backward pass is to be performed
+        :param reg_loss: bool, if True, attribute specific regularization losses are added
         :return: scalar loss value, scalar accuracy value
         """
         # extract data
@@ -37,6 +50,9 @@ class VAETrainer(Trainer):
         # compute accuracy
         accuracy = self.mean_accuracy(weights=weights,
                                       targets=score)
+        if reg_loss:
+            rc_tensor = self.get_rhy_complexity(score)
+            loss += self.compute_attr_reg_loss(latent_vec=z_tilde, attribute=rc_tensor)
         return loss, accuracy
 
     def process_batch_data(self, batch):
@@ -65,7 +81,61 @@ class VAETrainer(Trainer):
         :param epoch_num: int,
         """
         # Nothing to do here
-        return
+        if epoch_num > 0:
+            if epoch_num % 5 == 0:
+                self.beta *= 5
+        print('Beta: ', self.beta)
+
+    def compute_kld_loss(self, z_dist, prior_dist):
+        """
+
+        :param z_dist: torch.nn.distributions object
+        :param prior_dist: torch.nn.distributions
+        :param beta:
+        :return: kl divergence loss
+        """
+        kld = distributions.kl.kl_divergence(z_dist, prior_dist)
+        kld = self.beta * kld.sum(1).mean()
+        return kld
+
+    @staticmethod
+    def compute_attr_reg_loss(latent_vec, attribute, latent_dim=0):
+        """
+
+        :param latent_vec: torch Variable,
+        :param attribute: torch Variable,
+        :param latent_dim: int, latent dimension of interest
+        :return:
+        """
+        # extract latent dimension from latent vector
+        lv = latent_vec[:, latent_dim]
+        lv = lv - torch.mean(lv)
+        attr = attribute - torch.mean(attribute)
+        lv_coeff = torch.sqrt(torch.sum(lv ** 2))
+        attr_coeff = torch.sqrt(torch.sum(attr ** 2))
+        reg_loss = torch.sum(lv * attr) / (lv_coeff * attr_coeff)
+        return reg_loss
+
+    def get_rhy_complexity(self, measure_tensor):
+        """
+        Returns the normalized rhythmic complexity of a batch of measures
+        :param measure_tensor: torch Variable,
+                (batch_size, measure_seq_len)
+        :return: torch Variable,
+                (batch_size)
+        """
+        slur_index = self.dataset.note2index_dicts[SLUR_SYMBOL]
+        beat_tensor = measure_tensor.clone()
+        beat_tensor[beat_tensor != slur_index] = 1
+        beat_tensor[beat_tensor == slur_index] = 0
+        beat_tensor = beat_tensor.float()
+        num_measures = measure_tensor.shape[0]
+        weights = to_cuda_variable(RHY_COMPLEXITY_COEFFS.view(1, -1).float())
+        norm_coeff = torch.sum(weights, dim=1)
+        weights = weights.repeat(num_measures, 1)
+        h_product = weights * beat_tensor
+        b_str = torch.sum(h_product, dim=1) / norm_coeff
+        return b_str
 
     @staticmethod
     def latent_loss(mu, sigma):
@@ -128,16 +198,3 @@ class VAETrainer(Trainer):
                        + first_coeff * zt_ker
                        - second_coeff * zp_zt_ker)
         return mmd
-
-    @staticmethod
-    def compute_kld_loss(z_dist, prior_dist, beta=0.001):
-        """
-
-        :param z_dist: torch.nn.distributions object
-        :param prior_dist: torch.nn.distributions
-        :param beta:
-        :return: kl divergence loss
-        """
-        kld = distributions.kl.kl_divergence(z_dist, prior_dist)
-        kld = beta * kld.sum(1).mean()
-        return kld

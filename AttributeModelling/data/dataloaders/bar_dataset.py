@@ -5,6 +5,8 @@ from tqdm import tqdm
 import random
 from random import shuffle
 from abc import ABC, abstractmethod
+from joblib import Parallel, delayed
+import multiprocessing
 
 from music21 import meter
 from music21.abcFormat import ABCHandlerException
@@ -13,6 +15,7 @@ from AttributeModelling.data.dataloaders.bar_dataset_helpers import*
 
 # set random seed
 random.seed(0)
+NUM_CORES = multiprocessing.cpu_count()
 
 # TODO: Create an ABC to encompass the different dataset types
 
@@ -71,7 +74,7 @@ class FolkBarDataset:
         
         # compute and save dicts
         self.class_name = self.time_sig_str + '_FolkBarDataset_'
-        self.dict_path = os.path.join(self.dataset_dir_path, self.class_name + 'dicts.txt')
+        self.dict_path = os.path.join(self.dataset_dir_path, 'index_dicts.txt')
         self.index2note_dicts = None
         self.note2index_dicts = None
         self.compute_dicts()
@@ -424,13 +427,13 @@ class FolkNBarDataset(FolkBarDataset):
         if self.time_sig_num == 4:
             self.num_beats_per_bar = 4
         elif self.time_sig_num == 3:
-            self.num_beats_per_bar =3
+            self.num_beats_per_bar = 3
         self.seq_size_in_beats = self.num_beats_per_bar * self.n_bars
         self.pitch_range = [55, 84]
 
         # compute and save dicts
         self.class_name = self.time_sig_str + '_FolkNBarDataset' + str(self.n_bars) + '_'
-        self.dict_path = os.path.join(self.dataset_dir_path, self.class_name + 'dicts.txt')
+        self.dict_path = os.path.join(self.dataset_dir_path, 'index_dicts.txt')
         self.index2note_dicts = None
         self.note2index_dicts = None
         self.compute_dicts()
@@ -484,7 +487,7 @@ class FolkNBarDataset(FolkBarDataset):
         :return: (batch_size, end_tick - start_tick)
         """
         assert start_tick < end_tick
-        assert end_tick > 0
+        # assert end_tick > 0
         batch_size, length = tensor.size()
         symbol2index = self.note2index_dicts
         padded_tensor = []
@@ -510,6 +513,47 @@ class FolkNBarDataset(FolkBarDataset):
         padded_tensor = torch.cat(padded_tensor, 1)
         return padded_tensor
 
+    def get_tensor_dataset(self, f, bar_tensor_dataset):
+        """
+
+        :param f: str, filename
+        :param bar_tensor_dataset: list
+        :return: None
+        """
+        score = get_music21_score_from_path(f, fix_and_expand=True)
+        possible_transpositions = self.all_transposition_intervals(score)
+        for trans_int in possible_transpositions:
+            score_tensor = self.get_transposed_tensor(score, trans_int)
+            total_beats = int(score.highestTime)
+            # if total_beats % self.num_beats_per_bar == 0:
+            #    end_idx = total_beats - self.seq_size_in_beats + self.num_beats_per_bar + 1
+            # else:
+            #   end_idx = total_beats + self.num_beats_per_bar - total_beats % self.num_beats_per_bar
+            #    end_idx += self.num_beats_per_bar - self.seq_size_in_beats + 1
+            score_tensor = self.get_transposed_tensor(score, trans_int)
+            total_beats = int(score.highestTime)
+            # if total_beats % self.num_beats_per_bar == 0:
+            #    end_idx = total_beats - self.seq_size_in_beats + self.num_beats_per_bar + 1
+            # else:
+            #   end_idx = total_beats + self.num_beats_per_bar - total_beats % self.num_beats_per_bar
+            #    end_idx += self.num_beats_per_bar - self.seq_size_in_beats + 1
+            for offset_start in range(
+                -self.num_beats_per_bar,
+                total_beats,
+                int(self.seq_size_in_beats)
+            ):
+                offset_end = offset_start + self.seq_size_in_beats
+                local_score_tensor = self.get_tensor_with_padding(
+                    tensor=score_tensor,
+                    start_tick=offset_start * self.beat_subdivisions,
+                    end_tick=offset_end * self.beat_subdivisions
+                )
+                # append and add batch dimension
+                # cast to int
+                bar_tensor_dataset.append(
+                    local_score_tensor.int()
+                )
+
     def make_dataset(self):
         """
 
@@ -524,33 +568,11 @@ class FolkNBarDataset(FolkBarDataset):
 
         print('Making tensor dataset')
         bar_tensor_dataset = []
+        # Parallel(n_jobs=NUM_CORES)(
+        #    delayed(self.get_tensor_dataset)(f, bar_tensor_dataset) for _, f in tqdm(enumerate(self.dataset_filepaths))
+        # )
         for _, f in tqdm(enumerate(self.dataset_filepaths)):
-            score = get_music21_score_from_path(f, fix_and_expand=True)
-            possible_transpositions = self.all_transposition_intervals(score)
-            for trans_int in possible_transpositions:
-                score_tensor = self.get_transposed_tensor(score, trans_int)
-                total_beats = int(score.highestTime)
-                if total_beats % self.num_beats_per_bar == 0:
-                    end_idx = total_beats - self.seq_size_in_beats + self.num_beats_per_bar + 1
-                else:
-                    end_idx = total_beats + self.num_beats_per_bar - total_beats % self.num_beats_per_bar
-                    end_idx += self.num_beats_per_bar - self.seq_size_in_beats + 1
-                for offset_start in range(
-                        -self.num_beats_per_bar,
-                        end_idx,
-                        int(self.num_beats_per_bar)
-                ):
-                    offset_end = offset_start + self.seq_size_in_beats
-                    local_score_tensor = self.get_tensor_with_padding(
-                        tensor=score_tensor,
-                        start_tick=offset_start * self.beat_subdivisions,
-                        end_tick=offset_end * self.beat_subdivisions
-                    )
-                    # append and add batch dimension
-                    # cast to int
-                    bar_tensor_dataset.append(
-                        local_score_tensor.int()
-                    )
+            self.get_tensor_dataset(f, bar_tensor_dataset)
         bar_tensor_dataset = torch.cat(bar_tensor_dataset, 0)
         num_datapoints = bar_tensor_dataset.size()[0]
         score_tensor_dataset = bar_tensor_dataset.view(
@@ -572,7 +594,7 @@ if __name__ == '__main__':
         batch_size = 10
     else:
         batch_size = 128
-    bar_dataset = FolkNBarDataset(dataset_type='train', is_short=is_short)
+    bar_dataset = FolkNBarDataset(dataset_type='train', is_short=is_short, num_bars=1)
     (train_dataloader,
      val_dataloader,
      test_dataloader) = bar_dataset.data_loaders(

@@ -23,6 +23,11 @@ class VAETrainer(Trainer):
                  lr=1e-4):
         super(VAETrainer, self).__init__(dataset, model, lr)
         self.beta = 0.001
+        self.scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer=self.optimizer,
+            step_size=30,
+            gamma=0.1
+        )
 
     def loss_and_acc_for_batch(self, batch, epoch_num=None, train=True, reg_loss=False):
         """
@@ -80,11 +85,21 @@ class VAETrainer(Trainer):
         Updates the training scheduler if any
         :param epoch_num: int,
         """
-        # Nothing to do here
+        gamma = 0.00018
         if epoch_num > 0:
-            if epoch_num % 5 == 0:
-                self.beta *= 5
-        print('Beta: ', self.beta)
+            self.beta += gamma
+        for param_group in self.optimizer.param_groups:
+            current_lr = param_group['lr']
+            break
+        print('LR: ', current_lr, ' Beta: ', self.beta)
+
+    def step(self):
+        """
+        Perform the backward pass and step update for all optimizers
+        :return:
+        """
+        self.optimizer.step()
+        self.scheduler.step()
 
     def compute_kld_loss(self, z_dist, prior_dist):
         """

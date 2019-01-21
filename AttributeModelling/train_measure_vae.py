@@ -30,7 +30,7 @@ from AttributeModelling.utils.helpers import *
               help='float, amount got dropout prob between decoder RNN layers')
 @click.option('--batch_size', default=256,
               help='training batch size')
-@click.option('--num_epochs', default=50,
+@click.option('--num_epochs', default=20,
               help='number of training epochs')
 @click.option('--train', is_flag=True, default='True',
               help='train or retrain the specified model')
@@ -49,8 +49,17 @@ def main(note_embedding_dim,
          train,
          ):
 
-    folk_dataset_train = FolkNBarDataset(dataset_type='train')
-    # folk_dataset_test = FolkNBarDataset(dataset_type='test')
+    is_short = False
+    num_bars = 1
+    folk_dataset_train = FolkNBarDataset(
+        dataset_type='train',
+        is_short=is_short,
+        num_bars=num_bars)
+    folk_dataset_test = FolkNBarDataset(
+        dataset_type='test',
+        is_short=is_short,
+        num_bars=num_bars
+    )
 
     model = MeasureVAE(
         dataset=folk_dataset_train,
@@ -71,13 +80,14 @@ def main(note_embedding_dim,
             model.cuda()
         trainer = VAETrainer(
             dataset=folk_dataset_train,
-            model=model
+            model=model,
+            lr=1e-3
         )
         trainer.train_model(
             batch_size=batch_size,
             num_epochs=num_epochs,
-            plot=True,
-            log=True
+            plot=False,
+            log=True,
         )
     else:
         model.load()

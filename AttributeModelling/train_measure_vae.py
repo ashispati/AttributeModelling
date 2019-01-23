@@ -34,6 +34,10 @@ from AttributeModelling.utils.helpers import *
               help='number of training epochs')
 @click.option('--train', is_flag=True, default='True',
               help='train or retrain the specified model')
+@click.option('--plot/--no_plot', default=True,
+              help='plot the training log')
+@click.option('--log/--no_log', default=True,
+              help='log the results for tensorboard')
 def main(note_embedding_dim,
          metadata_embedding_dim,
          num_encoder_layers,
@@ -47,6 +51,8 @@ def main(note_embedding_dim,
          batch_size,
          num_epochs,
          train,
+         plot,
+         log
          ):
 
     is_short = False
@@ -81,13 +87,13 @@ def main(note_embedding_dim,
         trainer = VAETrainer(
             dataset=folk_dataset_train,
             model=model,
-            lr=1e-3
+            lr=1e-4
         )
         trainer.train_model(
             batch_size=batch_size,
             num_epochs=num_epochs,
-            plot=False,
-            log=True,
+            plot=plot,
+            log=log,
         )
     else:
         model.load()

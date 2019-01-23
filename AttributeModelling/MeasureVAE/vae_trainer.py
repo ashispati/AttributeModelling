@@ -1,3 +1,5 @@
+import torch
+import torch.nn.functional as F
 from torch import distributions
 
 from AttributeModelling.utils.helpers import *
@@ -23,13 +25,14 @@ class VAETrainer(Trainer):
                  lr=1e-4):
         super(VAETrainer, self).__init__(dataset, model, lr)
         self.beta = 0.001
-        self.scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer=self.optimizer,
-            step_size=30,
-            gamma=0.1
-        )
+        self.cur_epoch_num = 0
+        # self.scheduler = torch.optim.lr_scheduler.StepLR(
+        #    optimizer=self.optimizer,
+        #    step_size=30,
+        #    gamma=0.1
+        # )
 
-    def loss_and_acc_for_batch(self, batch, epoch_num=None, train=True, reg_loss=False):
+    def loss_and_acc_for_batch(self, batch, epoch_num=None, train=True, has_reg_loss=True):
         """
         Computes the loss and accuracy for the batch
         Must return (loss, accuracy) as a tuple, accuracy can be None
@@ -39,6 +42,11 @@ class VAETrainer(Trainer):
         :param reg_loss: bool, if True, attribute specific regularization losses are added
         :return: scalar loss value, scalar accuracy value
         """
+        if self.cur_epoch_num != epoch_num:
+            flag = True
+            self.cur_epoch_num = epoch_num
+        else:
+            flag = False
         # extract data
         score, metadata = batch
         # perform forward pass of model
@@ -55,9 +63,18 @@ class VAETrainer(Trainer):
         # compute accuracy
         accuracy = self.mean_accuracy(weights=weights,
                                       targets=score)
-        if reg_loss:
+        if has_reg_loss:
             rc_tensor = self.get_rhy_complexity(score)
-            loss += self.compute_attr_reg_loss(latent_vec=z_tilde, attribute=rc_tensor)
+            x = z_tilde[:, 0]
+            dist_loss = self.reg_loss_dist(x=x, y=rc_tensor)
+            loss += dist_loss
+            sign_loss = self.reg_loss_sign(x=x, y=rc_tensor)
+            loss += sign_loss
+            if flag:
+                print(recons_loss.item(), dist_loss.item(), dist_loss.item(), sign_loss.item())
+        else:
+            if flag:
+                print(recons_loss.item(), dist_loss.item())
         return loss, accuracy
 
     def process_batch_data(self, batch):
@@ -85,9 +102,9 @@ class VAETrainer(Trainer):
         Updates the training scheduler if any
         :param epoch_num: int,
         """
-        gamma = 0.00018
-        if epoch_num > 0:
-            self.beta += gamma
+        # gamma = 0.00018
+        # if epoch_num > 0:
+        #    self.beta += gamma
         for param_group in self.optimizer.param_groups:
             current_lr = param_group['lr']
             break
@@ -99,7 +116,7 @@ class VAETrainer(Trainer):
         :return:
         """
         self.optimizer.step()
-        self.scheduler.step()
+        # self.scheduler.step()
 
     def compute_kld_loss(self, z_dist, prior_dist):
         """
@@ -114,21 +131,51 @@ class VAETrainer(Trainer):
         return kld
 
     @staticmethod
-    def compute_attr_reg_loss(latent_vec, attribute, latent_dim=0):
+    def reg_loss_dist(x, y):
+        """
+        :param x: torch Variable,
+        :param y: torch Variable,
+        :return: scalar, loss
+        """
+        x_dist_mat = F.pdist(x.view(-1, 1))
+        y_dist_mat = F.pdist(y.view(-1, 1))
+        l1_loss = torch.nn.L1Loss()
+        dist_loss = l1_loss(x_dist_mat, y_dist_mat)
+        return dist_loss
+
+    @staticmethod
+    def reg_loss_sign(x, y):
         """
 
+        :param x: torch Variable,
+        :param y: torch Variable,
+        :return: scalar, loss
+        """
+        x = x.view(-1, 1).repeat(1, x.shape[0])
+        x_diff_sign = torch.sign(x - x.transpose(1, 0)).view(-1, 1)
+        x_diff_sign[x_diff_sign == 0.] = 1.
+        x_diff_sign[x_diff_sign == -1.] = 0.
+        y = y.view(-1, 1).repeat(1, y.shape[0])
+        y_diff_sign = torch.sign(y - y.transpose(1, 0)).view(-1, 1)
+        y_diff_sign[y_diff_sign == 0.] = 1.
+        y_diff_sign[y_diff_sign == -1.] = 0.
+        bce_loss = torch.nn.BCELoss()
+        sign_loss = bce_loss(x_diff_sign, y_diff_sign)
+        return sign_loss
+
+    @staticmethod
+    def reg_loss_corr(latent_vec, attribute, latent_dim=0):
+        """
         :param latent_vec: torch Variable,
         :param attribute: torch Variable,
         :param latent_dim: int, latent dimension of interest
-        :return:
         """
-        # extract latent dimension from latent vector
         lv = latent_vec[:, latent_dim]
         lv = lv - torch.mean(lv)
         attr = attribute - torch.mean(attribute)
         lv_coeff = torch.sqrt(torch.sum(lv ** 2))
         attr_coeff = torch.sqrt(torch.sum(attr ** 2))
-        reg_loss = torch.sum(lv * attr) / (lv_coeff * attr_coeff)
+        reg_loss = 1. + torch.sum(lv * attr) / (lv_coeff * attr_coeff)
         return reg_loss
 
     def get_rhy_complexity(self, measure_tensor):

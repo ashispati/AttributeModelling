@@ -2,7 +2,7 @@ import click
 
 from AttributeModelling.MeasureVAE.measure_vae import MeasureVAE
 from AttributeModelling.MeasureVAE.vae_trainer import VAETrainer
-# from AttributeModelling.MeasureVAE.vae_tester import VAETester
+from AttributeModelling.MeasureVAE.vae_tester import VAETester
 from AttributeModelling.data.dataloaders.bar_dataset import *
 from AttributeModelling.utils.helpers import *
 
@@ -32,8 +32,8 @@ from AttributeModelling.utils.helpers import *
               help='training batch size')
 @click.option('--num_epochs', default=20,
               help='number of training epochs')
-@click.option('--train', is_flag=True, default='True',
-              help='train or retrain the specified model')
+@click.option('--train/--test', default=True,
+              help='train or test the specified model')
 @click.option('--plot/--no_plot', default=True,
               help='plot the training log')
 @click.option('--log/--no_log', default=True,
@@ -100,11 +100,14 @@ def main(note_embedding_dim,
         model.cuda()
         model.eval()
 
-    # tester = VAETester(
-    #    dataset=folk_dataset_test,
-    #    model=model
+    tester = VAETester(
+       dataset=folk_dataset_test,
+       model=model
+    )
+    # tester.test_model(
+    #    batch_size=batch_size
     # )
-    # tester.test_model(eval_test=True)
+    tester.test_interp()
     # tester.plot_transposition_points(plt_type='tsne')
     # tester.plot_attribute_dist(
     #    plt_type='tsne',

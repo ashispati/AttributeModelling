@@ -107,12 +107,12 @@ def main(note_embedding_dim,
     # tester.test_model(
     #    batch_size=batch_size
     # )
-    tester.test_interp()
+    # tester.test_interp()
     # tester.plot_transposition_points(plt_type='tsne')
-    # tester.plot_attribute_dist(
-    #    plt_type='tsne',
-    #    attribute='beat_strength'
-    # )
+    tester.plot_attribute_dist(
+       plt_type='dim',
+       attribute='rhy_complexity'
+    )
 
 
 if __name__ == '__main__':

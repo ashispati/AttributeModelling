@@ -7,17 +7,6 @@ from AttributeModelling.utils.trainer import Trainer
 from AttributeModelling.MeasureVAE.measure_vae import MeasureVAE
 from AttributeModelling.data.dataloaders.bar_dataset import *
 
-RHY_COMPLEXITY_COEFFS = torch.from_numpy(
-    np.array(
-        [
-            5, 1, 0.5, 2, 0.5, 1,
-            3, 1, 0.5, 2, 0.5, 1,
-            4, 1, 0.5, 2, 0.5, 1,
-            3, 1, 0.5, 2, 0.5, 1
-        ]
-    )
-)
-
 
 class VAETrainer(Trainer):
     def __init__(self, dataset,
@@ -64,7 +53,7 @@ class VAETrainer(Trainer):
         accuracy = self.mean_accuracy(weights=weights,
                                       targets=score)
         if has_reg_loss:
-            rc_tensor = self.get_rhy_complexity(score)
+            rc_tensor = self.dataset.get_rhy_complexity(score)
             x = z_tilde[:, 0]
             dist_loss = self.reg_loss_dist(x=x, y=rc_tensor)
             loss += dist_loss
@@ -177,27 +166,6 @@ class VAETrainer(Trainer):
         attr_coeff = torch.sqrt(torch.sum(attr ** 2))
         reg_loss = 1. + torch.sum(lv * attr) / (lv_coeff * attr_coeff)
         return reg_loss
-
-    def get_rhy_complexity(self, measure_tensor):
-        """
-        Returns the normalized rhythmic complexity of a batch of measures
-        :param measure_tensor: torch Variable,
-                (batch_size, measure_seq_len)
-        :return: torch Variable,
-                (batch_size)
-        """
-        slur_index = self.dataset.note2index_dicts[SLUR_SYMBOL]
-        beat_tensor = measure_tensor.clone()
-        beat_tensor[beat_tensor != slur_index] = 1
-        beat_tensor[beat_tensor == slur_index] = 0
-        beat_tensor = beat_tensor.float()
-        num_measures = measure_tensor.shape[0]
-        weights = to_cuda_variable(RHY_COMPLEXITY_COEFFS.view(1, -1).float())
-        norm_coeff = torch.sum(weights, dim=1)
-        weights = weights.repeat(num_measures, 1)
-        h_product = weights * beat_tensor
-        b_str = torch.sum(h_product, dim=1) / norm_coeff
-        return b_str
 
     @staticmethod
     def latent_loss(mu, sigma):

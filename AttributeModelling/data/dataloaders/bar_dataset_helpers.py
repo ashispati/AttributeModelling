@@ -1,4 +1,6 @@
 import music21
+import torch
+import numpy as np
 from music21 import note
 from fractions import Fraction
 
@@ -7,7 +9,7 @@ MAX_NOTES = 1000
 SLUR_SYMBOL = '__'
 START_SYMBOL = 'START'
 END_SYMBOL = 'END'
-tick_values = [
+TICK_VALUES = [
         0,
         Fraction(1, 4),
         Fraction(1, 3),
@@ -16,14 +18,24 @@ tick_values = [
         Fraction(3, 4)
     ]
 
+RHY_COMPLEXITY_COEFFS = torch.from_numpy(
+    np.array(
+        [
+            5, 1, 0.5, 2, 0.5, 1,
+            3, 1, 0.5, 2, 0.5, 1,
+            4, 1, 0.5, 2, 0.5, 1,
+            3, 1, 0.5, 2, 0.5, 1
+        ]
+    )
+)
 
 def compute_tick_durations():
     """
     Computes the tick durations
     """
     diff = [n - p
-            for n, p in zip(tick_values[1:], tick_values[:-1])]
-    diff = diff + [1 - tick_values[-1]]
+            for n, p in zip(TICK_VALUES[1:], TICK_VALUES[:-1])]
+    diff = diff + [1 - TICK_VALUES[-1]]
     return diff
 
 
@@ -110,6 +122,7 @@ def score_range(score):
     min_pitch = min(pitches)
     max_pitch = max(pitches)
     return min_pitch, max_pitch
+
 
 def standard_name(note_or_rest):
     """

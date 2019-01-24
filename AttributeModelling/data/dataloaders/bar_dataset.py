@@ -4,6 +4,7 @@ import os
 from tqdm import tqdm
 import random
 from random import shuffle
+from scipy import stats
 from abc import ABC, abstractmethod
 from joblib import Parallel, delayed
 import multiprocessing
@@ -12,6 +13,7 @@ from music21 import meter
 from music21.abcFormat import ABCHandlerException
 from torch.utils.data import TensorDataset, DataLoader
 from AttributeModelling.data.dataloaders.bar_dataset_helpers import*
+from AttributeModelling.utils.helpers import *
 
 # set random seed
 random.seed(0)
@@ -53,7 +55,7 @@ class FolkBarDataset:
         self.valid_filelist = self.time_sig_str + 'valid_filelist.txt'
         
         # instantiate tick durations
-        self.beat_subdivisions = len(tick_values)
+        self.beat_subdivisions = len(TICK_VALUES)
         self.tick_durations = compute_tick_durations()
 
         # compute and save valid file paths
@@ -114,7 +116,7 @@ class FolkBarDataset:
         """
         eps = 1e-5
         notes = get_notes(score)
-        if not is_score_on_ticks(score, tick_values):
+        if not is_score_on_ticks(score, TICK_VALUES):
             raise ValueError
         list_note_strings_and_pitches = [(n.nameWithOctave, n.pitch.midi)
                                          for n in notes
@@ -145,7 +147,7 @@ class FolkBarDataset:
                                is_articulated]
                     i += 1
                     current_tick += self.tick_durations[
-                        (i - 1) % len(tick_values)]
+                        (i - 1) % len(TICK_VALUES)]
                     is_articulated = False
                 else:
                     j += 1
@@ -294,7 +296,7 @@ class FolkBarDataset:
                 # check if expand repeat works
                 score = get_music21_score_from_path(f, fix_and_expand=True)
                 # ignore files where notes are not on ticks
-                if not is_score_on_ticks(score, tick_values):
+                if not is_score_on_ticks(score, TICK_VALUES):
                     continue
                 valid_filelist.append(f)
             except (music21.abcFormat.ABCHandlerException,
@@ -401,6 +403,162 @@ class FolkBarDataset:
             drop_last=True,
         )
         return train_dl, val_dl, eval_dl
+
+    def tensor_to_m21score(self, tensor_score):
+        """
+        Converts lead given as tensor_lead to a true music21 score
+        :param tensor_score:
+        :return:
+        """
+        slur_index = self.note2index_dicts[SLUR_SYMBOL]
+
+        score = music21.stream.Score()
+        part = music21.stream.Part()
+        # LEAD
+        dur = 0
+        f = music21.note.Rest()
+        tensor_lead_np = tensor_score.numpy().flatten()
+        for tick_index, note_index in enumerate(tensor_lead_np):
+            # if it is a played note
+            if not note_index == slur_index:
+                # add previous note
+                if dur > 0:
+                    f.duration = music21.duration.Duration(dur)
+                    part.append(f)
+
+                dur = self.tick_durations[tick_index % self.beat_subdivisions]
+                f = standard_note(self.index2note_dicts[note_index])
+            else:
+                dur += self.tick_durations[tick_index % self.beat_subdivisions]
+        # add last note
+        f.duration = music21.duration.Duration(dur)
+        part.append(f)
+        score.insert(part)
+        return score
+
+    # Measure attribute extractors
+    def get_num_notes_in_measure(self, measure_tensor):
+        """
+        Returns the number of notes in each measure of the input normalized by the
+        length of the length of the measure representation
+        :param measure_tensor: torch Variable,
+                (batch_size, measure_seq_len)
+        :return: torch Variable containing float tensor ,
+                (batch_size)
+        """
+        _, measure_seq_len = measure_tensor.size()
+        slur_index = self.note2index_dicts[SLUR_SYMBOL]
+        rest_index = self.note2index_dicts['rest']
+        slur_count = torch.sum(measure_tensor == slur_index, 1)
+        rest_count = torch.sum(measure_tensor == rest_index, 1)
+        note_count = measure_seq_len - (slur_count + rest_count)
+        return note_count.float() / float(measure_seq_len)
+
+    def get_note_range_of_measure(self, measure_tensor):
+        """
+        Returns the note range of each measure of the input normalized by the range
+        the dataset
+        :param measure_tensor: torch Variable,
+                (batch_size, measure_seq_len)
+        :return: torch Variable containing float tensor ,
+                (batch_size)
+        """
+        batch_size, measure_seq_len = measure_tensor.size()
+        midi_min, midi_max = self.pitch_range
+        index2note = self.index2note_dicts
+        slur_index = self.note2index_dicts[SLUR_SYMBOL]
+        rest_index = self.note2index_dicts['rest']
+        none_index = self.note2index_dicts[None]
+        has_note = False
+        nrange = torch.zeros(batch_size)
+        if torch.cuda.is_available():
+            nrange = torch.autograd.Variable(nrange.cuda())
+        else:
+            nrange = torch.autograd.Variable(nrange)
+        for i in range(batch_size):
+            low_midi = midi_max
+            high_midi = midi_min
+            for j in range(measure_seq_len):
+                index = measure_tensor[i][j].item()
+                if index not in (slur_index, rest_index, none_index):
+                    has_note = True
+                    midi_j = music21.pitch.Pitch(index2note[index]).midi
+                    if midi_j < low_midi:
+                        low_midi = midi_j
+                    if midi_j > high_midi:
+                        high_midi = midi_j
+                if has_note:
+                    nrange[i] = high_midi - low_midi
+        return nrange.float() / (midi_max - midi_min)
+
+    def get_rhythmic_entropy(self, measure_tensor):
+        """
+        Returns the rhytmic entropy in a measure of music
+        :param measure_tensor: torch Variable,
+                (batch_size, measure_seq_len)
+        :return: torch Variable,
+                (batch_size)
+        """
+        if measure_tensor.is_cuda:
+            measure_tensor_np = measure_tensor.cpu().numpy()
+        else:
+            measure_tensor_np = measure_tensor.numpy()
+        slur_index = self.note2index_dicts[SLUR_SYMBOL]
+        measure_tensor_np[measure_tensor_np != slur_index] = 1
+        measure_tensor_np[measure_tensor_np == slur_index] = 0
+        ent = stats.entropy(np.transpose(measure_tensor_np))
+        ent = torch.from_numpy(np.transpose(ent))
+        if torch.cuda.is_available():
+            ent = torch.autograd.Variable(ent.cuda())
+        else:
+            ent = torch.autograd.Variable(ent)
+        return ent
+
+    def get_beat_strength(self, measure_tensor):
+        """
+        Returns the normalized beat strength in a measure of music
+        :param measure_tensor: torch Variable,
+                (batch_size, measure_seq_len)
+        :return: torch Variable,
+                (batch_size)
+        """
+        if measure_tensor.is_cuda:
+            measure_tensor_np = measure_tensor.cpu().numpy()
+        else:
+            measure_tensor_np = measure_tensor.numpy()
+        slur_index = self.note2index_dicts[SLUR_SYMBOL]
+        measure_tensor_np[measure_tensor_np != slur_index] = 1
+        measure_tensor_np[measure_tensor_np == slur_index] = 0
+        weights = np.array([1, 0.008, 0.008, 0.15, 0.008, 0.008])
+        weights = np.tile(weights, 4)
+        prod = weights * measure_tensor_np
+        b_str = np.sum(prod, axis=1)
+        if torch.cuda.is_available():
+            b_str = torch.autograd.Variable(torch.from_numpy(b_str).cuda())
+        else:
+            b_str = torch.autograd.Variable(torch.from_numpy(b_str))
+        return b_str
+
+    def get_rhy_complexity(self, measure_tensor):
+        """
+        Returns the normalized rhythmic complexity of a batch of measures
+        :param measure_tensor: torch Variable,
+                (batch_size, measure_seq_len)
+        :return: torch Variable,
+                (batch_size)
+        """
+        slur_index = self.note2index_dicts[SLUR_SYMBOL]
+        beat_tensor = measure_tensor.clone()
+        beat_tensor[beat_tensor != slur_index] = 1
+        beat_tensor[beat_tensor == slur_index] = 0
+        beat_tensor = beat_tensor.float()
+        num_measures = measure_tensor.shape[0]
+        weights = to_cuda_variable(RHY_COMPLEXITY_COEFFS.view(1, -1).float())
+        norm_coeff = torch.sum(weights, dim=1)
+        weights = weights.repeat(num_measures, 1)
+        h_product = weights * beat_tensor
+        b_str = torch.sum(h_product, dim=1) / norm_coeff
+        return b_str
 
 
 class FolkNBarDataset(FolkBarDataset):

@@ -1,8 +1,4 @@
-import os
-from tqdm import tqdm
 from random import randint
-import numpy as np
-
 from AttributeModelling.utils.helpers import *
 from AttributeModelling.data.dataloaders.bar_dataset import *
 from AttributeModelling.data.dataloaders.bar_dataset_helpers import *
@@ -29,6 +25,7 @@ class VAETester(object):
         self.z_dim = self.decoder.z_dim
         self.batch_size = 1
         self.measure_seq_len = 24
+        self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
     def test_model(self, batch_size):
         """
@@ -69,6 +66,25 @@ class VAETester(object):
         tensor_score2 = to_cuda_variable(tensor_score2.long())
         self.test_interpolation(tensor_score1, tensor_score2, 10)
 
+    def test_interpolation(self, tensor_score1, tensor_score2, n=1):
+        """
+        Tests the interpolation in the latent space for two random points in the
+        validation and test set
+        :param tensor_score1: torch tensor, (1, measure_seq_len)
+        :param tensor_score2: torch tensor, (1, measure_seq_len)
+        :param n: int, number of points for interpolation
+        :return:
+        """
+        z_dist1 = self.model.encoder(tensor_score1)
+        z_dist2 = self.model.encoder(tensor_score2)
+        z1 = z_dist1.loc
+        z2 = z_dist2.loc
+        tensor_score = self.decode_mid_point(z1, z2, n)
+        # tensor_score = torch.cat((tensor_score1, tensor_score, tensor_score2), 1)
+        score = self.dataset.tensor_to_m21score(tensor_score.cpu())
+        score.show()
+        return score
+
     def decode_mid_point(self, z1, z2, n):
         """
         Decodes the mid-point of two latent vectors
@@ -89,27 +105,8 @@ class VAETester(object):
             _, sam_interp = self.decoder(z_interp, dummy_score_tensor, self.train)
             tensor_score = torch.cat((tensor_score, sam_interp), 1)
         tensor_score = torch.cat((tensor_score, sam2), 1).view(1, -1)
-        #score = self.dataset.tensor_to_score(tensor_score.cpu())
+        # score = self.dataset.tensor_to_score(tensor_score.cpu())
         return tensor_score
-
-    def test_interpolation(self, tensor_score1, tensor_score2, n=1):
-        """
-        Tests the interpolation in the latent space for two random points in the
-        validation and test set
-        :param tensor_score1: torch tensor, (1, measure_seq_len)
-        :param tensor_score2: torch tensor, (1, measure_seq_len)
-        :param n: int, number of points for interpolation
-        :return:
-        """
-        z_dist1 = self.model.encoder(tensor_score1)
-        z_dist2 = self.model.encoder(tensor_score2)
-        z1 = z_dist1.loc
-        z2 = z_dist2.loc
-        tensor_score = self.decode_mid_point(z1, z2, n)
-        #tensor_score = torch.cat((tensor_score1, tensor_score, tensor_score2), 1)
-        score = self.dataset.tensor_to_score(tensor_score.cpu())
-        score.show()
-        return score
 
     def loss_and_acc_test(self, data_loader):
         """
@@ -159,45 +156,6 @@ class VAETester(object):
             mean_accuracy
         )
 
-    def loss_and_acc_test_alt(self, data_loader):
-        """
-        :param data_loader: torch data loader object
-        :return: (float, float)
-        """
-        mean_loss = 0
-        mean_accuracy = 0
-
-        for sample_id, (score_tensor, metadata_tensor) in tqdm(enumerate(data_loader)):
-            if isinstance(self.dataset, FolkDatasetNBars):
-                batch_size = score_tensor.size(0)
-                score_tensor = score_tensor.view(batch_size, self.dataset.n_bars, -1)
-            score_tensor = to_cuda_variable_long(score_tensor)
-
-            # compute forward pass
-            weights, samples = self.model.forward_test(
-                measure_score_tensor=score_tensor
-            )
-
-            # compute loss
-            recons_loss = VAETrainer.mean_crossentropy_loss_alt(
-                weights=weights,
-                targets=score_tensor
-            )
-            loss = recons_loss
-            # compute mean loss and accuracy
-            mean_loss += to_numpy(loss.mean())
-            accuracy = VAETrainer.mean_accuracy_alt(
-                weights=weights,
-                targets=score_tensor
-            )
-            mean_accuracy += to_numpy(accuracy)
-        mean_loss /= len(data_loader)
-        mean_accuracy /= len(data_loader)
-        return (
-            mean_loss,
-            mean_accuracy
-        )
-
     def plot_attribute_dist(self, attribute='num_notes', plt_type='pca'):
         """
         Plots the distribution of a particular attribute in the latent space
@@ -208,14 +166,14 @@ class VAETester(object):
         """
         (_, _, gen_test) = self.dataset.data_loaders(
             batch_size=64,  # TODO: remove this hard coding
-            split=(0.70, 0.20)
+            split=(0.01, 0.01)
         )
         z_all = []
         n_all = []
         num_samples = 5
         for sample_id, (score_tensor, _) in tqdm(enumerate(gen_test)):
             # convert input to torch Variables
-            if isinstance(self.dataset, FolkDatasetNBars):
+            if isinstance(self.dataset, FolkNBarDataset):
                 batch_size = score_tensor.size(0)
                 score_tensor = score_tensor.view(batch_size, self.dataset.n_bars, -1)
                 score_tensor = score_tensor.view(batch_size * self.dataset.n_bars, -1)
@@ -232,12 +190,14 @@ class VAETester(object):
                 attr = self.dataset.get_rhythmic_entropy(score_tensor)
             elif attribute == 'beat_strength':
                 attr = self.dataset.get_beat_strength(score_tensor)
+            elif attribute == 'rhy_complexity':
+                attr = self.dataset.get_rhy_complexity(score_tensor)
             else:
                 raise ValueError('Invalid attribute type')
             for i in range(attr.size(0)):
                 tensor_score = score_tensor[i, :]
-                start_idx = self.dataset.note2index_dicts[self.dataset.NOTES][START_SYMBOL]
-                end_idx = self.dataset.note2index_dicts[self.dataset.NOTES][END_SYMBOL]
+                start_idx = self.dataset.note2index_dicts[START_SYMBOL]
+                end_idx = self.dataset.note2index_dicts[END_SYMBOL]
                 if tensor_score[0] == start_idx:
                     attr[i] = -0.1
                 elif tensor_score[0] == end_idx:
@@ -250,11 +210,14 @@ class VAETester(object):
         z_all = to_numpy(z_all)
         n_all = to_numpy(n_all)
 
-        filename = 'plots/' + plt_type + '_' + attribute + '_' + str(num_samples) + '_measure_vae.png'
+        filename = self.dir_path + '/plots/' + plt_type + '_' + attribute + '_' + \
+                   str(num_samples) + '_measure_vae.png'
         if plt_type == 'pca':
             self.plot_pca(z_all, n_all, filename)
         elif plt_type == 'tsne':
             self.plot_tsne(z_all, n_all, filename)
+        elif plt_type == 'dim':
+            self.plot_dim(z_all, n_all, filename)
         else:
             raise ValueError('Invalid plot type')
 
@@ -264,26 +227,26 @@ class VAETester(object):
         :param plt_type: str, 'tsne' or 'pca'
         :return:
         """
-        score_gen = self.dataset.iterator_gen().__iter__()
-        for _ in range(1): #(randint(0, 100)):
-            original_score = next(score_gen)
+        filepaths = self.dataset.valid_filepaths
+        idx = random.randint(0, len(filepaths))
+        original_score = get_music21_score_from_path(filepaths[idx])
         possible_transpositions = self.dataset.all_transposition_intervals(original_score)
         z_all = []
         n_all = []
         n = 0
         for trans_int in possible_transpositions:
-            score_tensor, _ = self.dataset.transposed_score_and_metadata_tensors(
+            score_tensor = self.dataset.get_transposed_tensor(
                 original_score,
                 trans_int
             )
-            score_tensor = self.dataset.split_score_tensor_to_measures(score_tensor)
+            score_tensor = self.dataset.split_tensor_to_bars(score_tensor)
             score_tensor = to_cuda_variable_long(score_tensor)
             z_dist = self.model.encoder(score_tensor)
             z_tilde = z_dist.loc
             z_all.append(z_tilde)
             t = np.arange(0, z_tilde.size(0))
             n_all.append(torch.from_numpy(t))
-            #n_all.append(torch.ones(z_tilde.size(0)) * n)
+            # n_all.append(torch.ones(z_tilde.size(0)) * n)
             n += 1
         print(n)
         z_all = torch.cat(z_all, 0)
@@ -291,7 +254,7 @@ class VAETester(object):
         z_all = to_numpy(z_all)
         n_all = to_numpy(n_all)
 
-        filename = 'plots/' + plt_type + '_transposition_measure_vae.png'
+        filename = self.dir_path + '/plots/' + plt_type + '_transposition_measure_vae.png'
         if plt_type == 'pca':
             self.plot_pca(z_all, n_all, filename)
         elif plt_type == 'tsne':
@@ -330,8 +293,19 @@ class VAETester(object):
         plt.savefig(filename, format='png', dpi=300)
         plt.show()
 
+    @staticmethod
+    def plot_dim(data, target, filename, dim=0):
+        plt.scatter(
+            x=data[:, 0],
+            y=data[:, 1],
+            c=target,
+            cmap="viridis",
+            alpha=0.3
+        )
+        plt.colorbar()
+        plt.savefig(filename, format='png', dpi=300)
+        plt.show()
 
     @staticmethod
     def get_cmap(n, name='hsv'):
         return plt.cm.get_cmap(name, n)
-

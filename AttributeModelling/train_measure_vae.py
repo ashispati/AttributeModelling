@@ -109,9 +109,41 @@ def main(note_embedding_dim,
     # )
     # tester.test_interp()
     # tester.plot_transposition_points(plt_type='tsne')
-    tester.plot_attribute_dist(
-       plt_type='dim',
-       attribute='rhy_complexity'
+    grid_res = 0.01
+    tester.plot_attribute_surface(
+
+        attribute='note_range',
+        dim1=0,
+        dim2=1,
+        grid_res=grid_res
+    )
+    tester.plot_attribute_surface(
+
+        attribute='rhy_complexity',
+        dim1=0,
+        dim2=1,
+        grid_res=grid_res
+    )
+    tester.plot_attribute_surface(
+
+        attribute='rhy_complexity',
+        dim1=21,
+        dim2=145,
+        grid_res=grid_res
+    )
+    tester.plot_attribute_surface(
+
+        attribute='rhy_entropy',
+        dim1=0,
+        dim2=1,
+        grid_res=grid_res
+    )
+    tester.plot_attribute_surface(
+
+        attribute='num_notes',
+        dim1=0,
+        dim2=1,
+        grid_res=grid_res
     )
 
 

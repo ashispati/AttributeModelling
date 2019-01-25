@@ -156,11 +156,63 @@ class VAETester(object):
             mean_accuracy
         )
 
+    def plot_attribute_surface(self, attribute='rhy_complexity', dim1=0, dim2=1, grid_res=0.5):
+        """
+        Plots the value of an attribute over a surface defined by the dimensions
+        :param attribute: str,
+        :param dim1: int,
+        :param dim2: int,
+        :param grid_res: float,
+        :return:
+        """
+        # create the dataspace
+        x1 = torch.arange(-1.0, 1.0, grid_res)
+        x2 = torch.arange(-1.0, 1.0, grid_res)
+        z1, z2 = torch.meshgrid([x1, x2])
+        num_points = z1.size(0) * z1.size(1)
+        z = torch.randn(num_points, self.model.latent_space_dim)
+        z[:, dim1] = z1.contiguous().view(1, -1)
+        z[:, dim2] = z2.contiguous().view(1, -1)
+        z = to_cuda_variable(z)
+        # pass the points through the model decoder
+        mini_batch_size = 400
+        num_mini_batches = num_points // mini_batch_size
+        attr_all = []
+        for i in range(num_mini_batches):
+            print(i)
+            z_batch = z[i*mini_batch_size:(i+1)*mini_batch_size, :]
+            dummy_score_tensor = to_cuda_variable(torch.zeros(z_batch.size(0), self.measure_seq_len))
+            _, samples = self.model.decoder(
+                z=z_batch,
+                score_tensor=dummy_score_tensor,
+                train=self.train
+            )
+            samples = samples.view(z_batch.size(0), -1)
+            if attribute == 'num_notes':
+                attr = self.dataset.get_num_notes_in_measure(samples)
+            elif attribute == 'note_range':
+                attr = self.dataset.get_note_range_of_measure(samples)
+            elif attribute == 'rhy_entropy':
+                attr = self.dataset.get_rhythmic_entropy(samples)
+            elif attribute == 'beat_strength':
+                attr = self.dataset.get_beat_strength(samples)
+            elif attribute == 'rhy_complexity':
+                attr = self.dataset.get_rhy_complexity(samples)
+            else:
+                raise ValueError('Invalid attribute type')
+            attr_all.append(attr)
+        attr_all = torch.cat(attr_all, 0)
+        z = to_numpy(z)
+        attr_val = to_numpy(attr_all)
+        filename = self.dir_path + '/plots/attr_surf_' + attribute + '_[' \
+                   + str(dim1) + ',' + str(dim2) + '].png'
+        self.plot_dim(z, attr_val, filename, dim1=dim1, dim2=dim2)
+
     def plot_attribute_dist(self, attribute='num_notes', plt_type='pca'):
         """
         Plots the distribution of a particular attribute in the latent space
         :param attribute: str,
-                num_notes, note_range, rhy_entropy, beat_strength
+                num_notes, note_range, rhy_entropy, beat_strength, rhy_complexity
         :param plt_type: str, 'tsne' or 'pca'
         :return:
         """
@@ -277,6 +329,7 @@ class VAETester(object):
         plt.colorbar()
         plt.savefig(filename, format='png', dpi=300)
         plt.show()
+        plt.close()
 
     @staticmethod
     def plot_tsne(data, target, filename):
@@ -292,19 +345,21 @@ class VAETester(object):
         plt.colorbar()
         plt.savefig(filename, format='png', dpi=300)
         plt.show()
+        plt.close()
 
     @staticmethod
-    def plot_dim(data, target, filename, dim=0):
+    def plot_dim(data, target, filename, dim1=0, dim2=1):
         plt.scatter(
-            x=data[:, 0],
-            y=data[:, 1],
+            x=data[:, dim1],
+            y=data[:, dim2],
             c=target,
             cmap="viridis",
             alpha=0.3
         )
         plt.colorbar()
         plt.savefig(filename, format='png', dpi=300)
-        plt.show()
+        # plt.show()
+        plt.close()
 
     @staticmethod
     def get_cmap(n, name='hsv'):

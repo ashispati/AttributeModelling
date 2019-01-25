@@ -448,10 +448,14 @@ class FolkBarDataset:
         """
         _, measure_seq_len = measure_tensor.size()
         slur_index = self.note2index_dicts[SLUR_SYMBOL]
+        start_index = self.note2index_dicts[START_SYMBOL]
+        end_index = self.note2index_dicts[END_SYMBOL]
         rest_index = self.note2index_dicts['rest']
         slur_count = torch.sum(measure_tensor == slur_index, 1)
         rest_count = torch.sum(measure_tensor == rest_index, 1)
-        note_count = measure_seq_len - (slur_count + rest_count)
+        start_count = torch.sum(measure_tensor == start_index, 1)
+        end_count = torch.sum(measure_tensor == end_index, 1)
+        note_count = measure_seq_len - (slur_count + rest_count + start_count + end_count)
         return note_count.float() / float(measure_seq_len)
 
     def get_note_range_of_measure(self, measure_tensor):
@@ -469,6 +473,8 @@ class FolkBarDataset:
         slur_index = self.note2index_dicts[SLUR_SYMBOL]
         rest_index = self.note2index_dicts['rest']
         none_index = self.note2index_dicts[None]
+        start_index = self.note2index_dicts[START_SYMBOL]
+        end_index = self.note2index_dicts[END_SYMBOL]
         has_note = False
         nrange = torch.zeros(batch_size)
         if torch.cuda.is_available():
@@ -480,15 +486,17 @@ class FolkBarDataset:
             high_midi = midi_min
             for j in range(measure_seq_len):
                 index = measure_tensor[i][j].item()
-                if index not in (slur_index, rest_index, none_index):
+                if index not in (slur_index, rest_index, none_index, start_index, end_index):
                     has_note = True
                     midi_j = music21.pitch.Pitch(index2note[index]).midi
-                    if midi_j < low_midi:
+                    if midi_j <= low_midi:
                         low_midi = midi_j
-                    if midi_j > high_midi:
+                    if midi_j >= high_midi:
                         high_midi = midi_j
                 if has_note:
                     nrange[i] = high_midi - low_midi
+                else:
+                    nrange[i] = -0.1
         return nrange.float() / (midi_max - midi_min)
 
     def get_rhythmic_entropy(self, measure_tensor):
@@ -499,19 +507,21 @@ class FolkBarDataset:
         :return: torch Variable,
                 (batch_size)
         """
-        if measure_tensor.is_cuda:
-            measure_tensor_np = measure_tensor.cpu().numpy()
-        else:
-            measure_tensor_np = measure_tensor.numpy()
         slur_index = self.note2index_dicts[SLUR_SYMBOL]
-        measure_tensor_np[measure_tensor_np != slur_index] = 1
-        measure_tensor_np[measure_tensor_np == slur_index] = 0
-        ent = stats.entropy(np.transpose(measure_tensor_np))
+        start_index = self.note2index_dicts[START_SYMBOL]
+        end_index = self.note2index_dicts[END_SYMBOL]
+        rest_index = self.note2index_dicts['rest']
+        none_index = self.note2index_dicts[None]
+        beat_tensor = measure_tensor.clone()
+        beat_tensor[beat_tensor == start_index] = slur_index
+        beat_tensor[beat_tensor == end_index] = slur_index
+        beat_tensor[beat_tensor == rest_index] = slur_index
+        beat_tensor[beat_tensor == none_index] = slur_index
+        beat_tensor[beat_tensor != slur_index] = 1
+        beat_tensor[beat_tensor == slur_index] = 0
+        ent = stats.entropy(np.transpose(to_numpy(beat_tensor)))
         ent = torch.from_numpy(np.transpose(ent))
-        if torch.cuda.is_available():
-            ent = torch.autograd.Variable(ent.cuda())
-        else:
-            ent = torch.autograd.Variable(ent)
+        ent = to_cuda_variable(ent)
         return ent
 
     def get_beat_strength(self, measure_tensor):
@@ -548,7 +558,15 @@ class FolkBarDataset:
                 (batch_size)
         """
         slur_index = self.note2index_dicts[SLUR_SYMBOL]
+        start_index = self.note2index_dicts[START_SYMBOL]
+        end_index = self.note2index_dicts[END_SYMBOL]
+        rest_index = self.note2index_dicts['rest']
+        none_index = self.note2index_dicts[None]
         beat_tensor = measure_tensor.clone()
+        beat_tensor[beat_tensor == start_index] = slur_index
+        beat_tensor[beat_tensor == end_index] = slur_index
+        beat_tensor[beat_tensor == rest_index] = slur_index
+        beat_tensor[beat_tensor == none_index] = slur_index
         beat_tensor[beat_tensor != slur_index] = 1
         beat_tensor[beat_tensor == slur_index] = 0
         beat_tensor = beat_tensor.float()

@@ -22,12 +22,15 @@ class VAETester(object):
         self.model = model
         self.model.eval()
         self.has_reg_loss = has_reg_loss
+        self.trainer_config = ''
         if self.has_reg_loss:
             if reg_type is not None:
                 self.reg_type = reg_type
             self.reg_dim = reg_dim
             self.trainer_config = '[' + self.reg_type + ',' + str(self.reg_dim) + ']'
             self.model.update_trainer_config(self.trainer_config)
+            self.model.load()
+            self.model.cuda()
         self.filepath = os.path.join('models/',
                                      self.model.__repr__())
 
@@ -217,16 +220,16 @@ class VAETester(object):
         rc_all = to_numpy(torch.cat(rc_all, 0))
         ie_all = to_numpy(torch.cat(ie_all, 0))
         z = to_numpy(z)
-        filename = self.dir_path + '/plots/attr_surf_note_density_[' \
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_note_density_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z, nd_all, filename, dim1=dim1, dim2=dim2)
-        filename = self.dir_path + '/plots/attr_surf_note_range_[' \
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_note_range_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z, nr_all, filename, dim1=dim1, dim2=dim2)
-        filename = self.dir_path + '/plots/attr_surf_rhy_complexity_[' \
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_rhy_complexity_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z, rc_all, filename, dim1=dim1, dim2=dim2)
-        filename = self.dir_path + '/plots/attr_surf_int_entropy_[' \
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_int_entropy_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z, ie_all, filename, dim1=dim1, dim2=dim2)
 

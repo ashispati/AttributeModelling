@@ -91,7 +91,7 @@ def main(note_embedding_dim,
             dataset=folk_dataset_train,
             model=model,
             lr=1e-4,
-            has_reg_loss=True,
+            has_reg_loss=reg_loss,
             reg_type='rhy_complexity',
             reg_dim=0
         )
@@ -121,7 +121,7 @@ def main(note_embedding_dim,
     grid_res = 0.01
     tester.plot_attribute_surface(
         dim1=0,
-        dim2=1,
+        dim2=56,
         grid_res=grid_res
     )
     tester.plot_attribute_surface(
@@ -129,6 +129,7 @@ def main(note_embedding_dim,
         dim2=241,
         grid_res=grid_res
     )
+
 
 if __name__ == '__main__':
     main()

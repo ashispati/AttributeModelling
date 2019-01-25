@@ -6,8 +6,8 @@ import random
 from random import shuffle
 from scipy import stats
 from abc import ABC, abstractmethod
-from joblib import Parallel, delayed
-import multiprocessing
+# from joblib import Parallel, delayed
+# import multiprocessing
 import torch.nn.functional as F
 
 from music21 import meter
@@ -18,7 +18,7 @@ from AttributeModelling.utils.helpers import *
 
 # set random seed
 random.seed(0)
-NUM_CORES = multiprocessing.cpu_count()
+# NUM_CORES = multiprocessing.cpu_count()
 
 # TODO: Create an ABC to encompass the different dataset types
 

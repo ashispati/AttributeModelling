@@ -38,6 +38,8 @@ from AttributeModelling.utils.helpers import *
               help='plot the training log')
 @click.option('--log/--no_log', default=True,
               help='log the results for tensorboard')
+@click.option('--reg_loss/--no_reg_loss', default=True,
+              help='train with regularization loss')
 def main(note_embedding_dim,
          metadata_embedding_dim,
          num_encoder_layers,
@@ -52,7 +54,8 @@ def main(note_embedding_dim,
          num_epochs,
          train,
          plot,
-         log
+         log,
+         reg_loss
          ):
 
     is_short = False
@@ -106,7 +109,7 @@ def main(note_embedding_dim,
     tester = VAETester(
         dataset=folk_dataset_test,
         model=model,
-        has_reg_loss=True,
+        has_reg_loss=reg_loss,
         reg_type='rhy_complexity',
         reg_dim=0
     )

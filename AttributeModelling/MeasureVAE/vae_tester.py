@@ -156,18 +156,17 @@ class VAETester(object):
             mean_accuracy
         )
 
-    def plot_attribute_surface(self, attribute='rhy_complexity', dim1=0, dim2=1, grid_res=0.5):
+    def plot_attribute_surface(self, dim1=0, dim2=1, grid_res=0.5):
         """
         Plots the value of an attribute over a surface defined by the dimensions
-        :param attribute: str,
         :param dim1: int,
         :param dim2: int,
         :param grid_res: float,
         :return:
         """
         # create the dataspace
-        x1 = torch.arange(-1.0, 1.0, grid_res)
-        x2 = torch.arange(-1.0, 1.0, grid_res)
+        x1 = torch.arange(-0.5, 0.5, grid_res)
+        x2 = torch.arange(-0.5, 0.5, grid_res)
         z1, z2 = torch.meshgrid([x1, x2])
         num_points = z1.size(0) * z1.size(1)
         z = torch.randn(num_points, self.model.latent_space_dim)
@@ -175,9 +174,12 @@ class VAETester(object):
         z[:, dim2] = z2.contiguous().view(1, -1)
         z = to_cuda_variable(z)
         # pass the points through the model decoder
-        mini_batch_size = 400
+        mini_batch_size = 500
         num_mini_batches = num_points // mini_batch_size
-        attr_all = []
+        nd_all = []
+        nr_all = []
+        rc_all = []
+        ie_all = []
         for i in range(num_mini_batches):
             print(i)
             z_batch = z[i*mini_batch_size:(i+1)*mini_batch_size, :]
@@ -188,25 +190,31 @@ class VAETester(object):
                 train=self.train
             )
             samples = samples.view(z_batch.size(0), -1)
-            if attribute == 'num_notes':
-                attr = self.dataset.get_num_notes_in_measure(samples)
-            elif attribute == 'note_range':
-                attr = self.dataset.get_note_range_of_measure(samples)
-            elif attribute == 'rhy_entropy':
-                attr = self.dataset.get_rhythmic_entropy(samples)
-            elif attribute == 'beat_strength':
-                attr = self.dataset.get_beat_strength(samples)
-            elif attribute == 'rhy_complexity':
-                attr = self.dataset.get_rhy_complexity(samples)
-            else:
-                raise ValueError('Invalid attribute type')
-            attr_all.append(attr)
-        attr_all = torch.cat(attr_all, 0)
+            note_density = self.dataset.get_notes_density_in_measure(samples)
+            note_range = self.dataset.get_note_range_of_measure(samples)
+            rhy_complexity = self.dataset.get_rhy_complexity(samples)
+            interval_entropy = self.dataset.get_interval_entropy(samples)
+            nd_all.append(note_density)
+            nr_all.append(note_range)
+            rc_all.append(rhy_complexity)
+            ie_all.append(interval_entropy)
+        nd_all = to_numpy(torch.cat(nd_all, 0))
+        nr_all = to_numpy(torch.cat(nr_all, 0))
+        rc_all = to_numpy(torch.cat(rc_all, 0))
+        ie_all = to_numpy(torch.cat(ie_all, 0))
         z = to_numpy(z)
-        attr_val = to_numpy(attr_all)
-        filename = self.dir_path + '/plots/attr_surf_' + attribute + '_[' \
+        filename = self.dir_path + '/plots/attr_surf_note_density_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
-        self.plot_dim(z, attr_val, filename, dim1=dim1, dim2=dim2)
+        self.plot_dim(z, nd_all, filename, dim1=dim1, dim2=dim2)
+        filename = self.dir_path + '/plots/attr_surf_note_range_[' \
+                   + str(dim1) + ',' + str(dim2) + '].png'
+        self.plot_dim(z, nr_all, filename, dim1=dim1, dim2=dim2)
+        filename = self.dir_path + '/plots/attr_surf_rhy_complexity_[' \
+                   + str(dim1) + ',' + str(dim2) + '].png'
+        self.plot_dim(z, rc_all, filename, dim1=dim1, dim2=dim2)
+        filename = self.dir_path + '/plots/attr_surf_int_entropy_[' \
+                   + str(dim1) + ',' + str(dim2) + '].png'
+        self.plot_dim(z, ie_all, filename, dim1=dim1, dim2=dim2)
 
     def plot_attribute_dist(self, attribute='num_notes', plt_type='pca'):
         """
@@ -235,7 +243,7 @@ class VAETester(object):
             z_tilde = z_dist.loc
             z_all.append(z_tilde)
             if attribute == 'num_notes':
-                attr = self.dataset.get_num_notes_in_measure(score_tensor)
+                attr = self.dataset.get_notes_density_in_measure(score_tensor)
             elif attribute == 'note_range':
                 attr = self.dataset.get_note_range_of_measure(score_tensor)
             elif attribute == 'rhy_entropy':
@@ -353,8 +361,10 @@ class VAETester(object):
             x=data[:, dim1],
             y=data[:, dim2],
             c=target,
+            s=12,
+            linewidths=0,
             cmap="viridis",
-            alpha=0.3
+            alpha=0.8
         )
         plt.colorbar()
         plt.savefig(filename, format='png', dpi=300)

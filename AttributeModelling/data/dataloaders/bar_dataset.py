@@ -8,6 +8,7 @@ from scipy import stats
 from abc import ABC, abstractmethod
 from joblib import Parallel, delayed
 import multiprocessing
+import torch.nn.functional as F
 
 from music21 import meter
 from music21.abcFormat import ABCHandlerException
@@ -437,7 +438,7 @@ class FolkBarDataset:
         return score
 
     # Measure attribute extractors
-    def get_num_notes_in_measure(self, measure_tensor):
+    def get_notes_density_in_measure(self, measure_tensor):
         """
         Returns the number of notes in each measure of the input normalized by the
         length of the length of the measure representation
@@ -468,36 +469,27 @@ class FolkBarDataset:
                 (batch_size)
         """
         batch_size, measure_seq_len = measure_tensor.size()
-        midi_min, midi_max = self.pitch_range
         index2note = self.index2note_dicts
         slur_index = self.note2index_dicts[SLUR_SYMBOL]
         rest_index = self.note2index_dicts['rest']
         none_index = self.note2index_dicts[None]
         start_index = self.note2index_dicts[START_SYMBOL]
         end_index = self.note2index_dicts[END_SYMBOL]
-        has_note = False
-        nrange = torch.zeros(batch_size)
-        if torch.cuda.is_available():
-            nrange = torch.autograd.Variable(nrange.cuda())
-        else:
-            nrange = torch.autograd.Variable(nrange)
+        nrange = to_cuda_variable(torch.zeros(batch_size))
         for i in range(batch_size):
-            low_midi = midi_max
-            high_midi = midi_min
+            midi_notes = []
             for j in range(measure_seq_len):
                 index = measure_tensor[i][j].item()
                 if index not in (slur_index, rest_index, none_index, start_index, end_index):
-                    has_note = True
-                    midi_j = music21.pitch.Pitch(index2note[index]).midi
-                    if midi_j <= low_midi:
-                        low_midi = midi_j
-                    if midi_j >= high_midi:
-                        high_midi = midi_j
-                if has_note:
-                    nrange[i] = high_midi - low_midi
-                else:
-                    nrange[i] = -0.1
-        return nrange.float() / (midi_max - midi_min)
+                    midi_note = torch.Tensor([music21.pitch.Pitch(index2note[index]).midi])
+                    midi_notes.append(midi_note)
+            if len(midi_notes) == 0 or len(midi_notes) == 1:
+                nrange[i] = 0
+            else:
+                midi_notes = torch.cat(midi_notes, 0)
+                midi_notes = to_cuda_variable_long(midi_notes)
+                nrange[i] = torch.max(midi_notes) - torch.min(midi_notes)
+        return nrange / 26
 
     def get_rhythmic_entropy(self, measure_tensor):
         """
@@ -577,6 +569,47 @@ class FolkBarDataset:
         h_product = weights * beat_tensor
         b_str = torch.sum(h_product, dim=1) / norm_coeff
         return b_str
+
+    def get_interval_entropy(self, measure_tensor):
+        """
+        Returns the normalized interval entropy of a batch of measures
+        :param measure_tensor: torch Variable,
+                (batch_size, measure_seq_len)
+        :return: torch Variable,
+                (batch_size)
+        """
+        batch_size, measure_seq_len = measure_tensor.size()
+        index2note = self.index2note_dicts
+        slur_index = self.note2index_dicts[SLUR_SYMBOL]
+        rest_index = self.note2index_dicts['rest']
+        none_index = self.note2index_dicts[None]
+        start_index = self.note2index_dicts[START_SYMBOL]
+        end_index = self.note2index_dicts[END_SYMBOL]
+        has_note = False
+        nrange = to_cuda_variable(torch.zeros(batch_size))
+        for i in range(batch_size):
+            midi_notes = []
+            for j in range(measure_seq_len):
+                index = measure_tensor[i][j].item()
+                if index not in (slur_index, rest_index, none_index, start_index, end_index):
+                    midi_note = torch.Tensor([music21.pitch.Pitch(index2note[index]).midi])
+                    midi_notes.append(midi_note)
+            if len(midi_notes) == 0 or len(midi_notes) == 1:
+                nrange[i] = 0
+            else:
+                midi_notes = torch.cat(midi_notes, 0)
+                midi_notes = to_cuda_variable_long(midi_notes)
+                # compute intervals
+                midi_notes = torch.abs(midi_notes[1:] - midi_notes[:-1])
+                midi_notes = midi_notes % 12
+                probs = to_cuda_variable(torch.zeros([12, 1]))
+                for k in range(len(midi_notes)):
+                    probs[midi_notes[k]] += 1
+                # compute entropy of this interval vector
+                b = F.softmax(probs, dim=0) * F.log_softmax(probs, dim=0)
+                b = -1.0 * b.sum()
+                nrange[i] = b
+        return nrange
 
 
 class FolkNBarDataset(FolkBarDataset):

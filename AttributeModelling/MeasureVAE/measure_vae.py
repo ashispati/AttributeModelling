@@ -76,9 +76,9 @@ class MeasureVAE(nn.Module):
         )
 
         # location to save model
-        cur_dir = os.path.dirname(os.path.realpath(__file__))
-        self.filepath = os.path.join(cur_dir, 'models/',
-                                     self.__repr__())
+        self.trainer_config = ''
+        self.filepath = ''
+        self.update_filepath()
 
     def __repr__(self):
         """
@@ -89,7 +89,26 @@ class MeasureVAE(nn.Module):
                self.dataset.__repr__() +  \
                self.encoder.__repr__() + \
                self.decoder.__repr__() + \
+               self.trainer_config + \
                ')'
+
+    def update_filepath(self):
+        """
+        Updates the filepath
+        :return:
+        """
+        cur_dir = os.path.dirname(os.path.realpath(__file__))
+        self.filepath = os.path.join(cur_dir, 'models/',
+                                     self.__repr__())
+
+    def update_trainer_config(self, config):
+        """
+        Update the trainer configuration string
+        :param config: str,
+        :return:
+        """
+        self.trainer_config = config
+        self.update_filepath()
 
     def forward(self, measure_score_tensor: Variable,
                 measure_metadata_tensor: Variable, train=True):

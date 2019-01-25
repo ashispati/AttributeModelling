@@ -10,10 +10,24 @@ import matplotlib.pyplot as plt
 
 
 class VAETester(object):
-    def __init__(self, dataset, model: MeasureVAE):
+    def __init__(
+            self,
+            dataset,
+            model: MeasureVAE,
+            has_reg_loss=False,
+            reg_type=None,
+            reg_dim=0
+    ):
         self.dataset = dataset
         self.model = model
         self.model.eval()
+        self.has_reg_loss = has_reg_loss
+        if self.has_reg_loss:
+            if reg_type is not None:
+                self.reg_type = reg_type
+            self.reg_dim = reg_dim
+            self.trainer_config = '[' + self.reg_type + ',' + str(self.reg_dim) + ']'
+            self.model.update_trainer_config(self.trainer_config)
         self.filepath = os.path.join('models/',
                                      self.model.__repr__())
 

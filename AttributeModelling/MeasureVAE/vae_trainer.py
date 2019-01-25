@@ -1,34 +1,42 @@
-import torch
-import torch.nn.functional as F
 from torch import distributions
 
-from AttributeModelling.utils.helpers import *
 from AttributeModelling.utils.trainer import Trainer
 from AttributeModelling.MeasureVAE.measure_vae import MeasureVAE
 from AttributeModelling.data.dataloaders.bar_dataset import *
 
 
 class VAETrainer(Trainer):
-    def __init__(self, dataset,
-                 model: MeasureVAE,
-                 lr=1e-4):
+    def __init__(
+        self, dataset,
+        model: MeasureVAE,
+        lr=1e-4,
+        has_reg_loss=False,
+        reg_type=None,
+        reg_dim=0,
+    ):
         super(VAETrainer, self).__init__(dataset, model, lr)
         self.beta = 0.001
         self.cur_epoch_num = 0
+        self.has_reg_loss = has_reg_loss
+        if self.has_reg_loss:
+            if reg_type is not None:
+                self.reg_type = reg_type
+            self.reg_dim = reg_dim
+            self.trainer_config = '[' + self.reg_type + ',' + str(self.reg_dim) + ']'
+            self.model.update_trainer_config(self.trainer_config)
         # self.scheduler = torch.optim.lr_scheduler.StepLR(
         #    optimizer=self.optimizer,
         #    step_size=30,
         #    gamma=0.1
         # )
 
-    def loss_and_acc_for_batch(self, batch, epoch_num=None, train=True, has_reg_loss=True):
+    def loss_and_acc_for_batch(self, batch, epoch_num=None, train=True):
         """
         Computes the loss and accuracy for the batch
         Must return (loss, accuracy) as a tuple, accuracy can be None
         :param batch: torch Variable,
         :param epoch_num: int, used to change training schedule
         :param train: bool, True is backward pass is to be performed
-        :param reg_loss: bool, if True, attribute specific regularization losses are added
         :return: scalar loss value, scalar accuracy value
         """
         if self.cur_epoch_num != epoch_num:
@@ -52,9 +60,12 @@ class VAETrainer(Trainer):
         # compute accuracy
         accuracy = self.mean_accuracy(weights=weights,
                                       targets=score)
-        if has_reg_loss:
-            rc_tensor = self.dataset.get_rhy_complexity(score)
-            x = z_tilde[:, 0]
+        if self.has_reg_loss:
+            if self.reg_type == 'rhy_complexity':
+                rc_tensor = self.dataset.get_rhy_complexity(score)
+            else:
+                raise ValueError('Invalid regularization attribute')
+            x = z_tilde[:, self.reg_dim]
             dist_loss = self.reg_loss_dist(x=x, y=rc_tensor)
             loss += dist_loss
             sign_loss = self.reg_loss_sign(x=x, y=rc_tensor)

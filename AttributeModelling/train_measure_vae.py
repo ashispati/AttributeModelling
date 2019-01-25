@@ -87,7 +87,10 @@ def main(note_embedding_dim,
         trainer = VAETrainer(
             dataset=folk_dataset_train,
             model=model,
-            lr=1e-4
+            lr=1e-4,
+            has_reg_loss=True,
+            reg_type='rhy_complexity',
+            reg_dim=0
         )
         trainer.train_model(
             batch_size=batch_size,
@@ -101,8 +104,11 @@ def main(note_embedding_dim,
         model.eval()
 
     tester = VAETester(
-       dataset=folk_dataset_test,
-       model=model
+        dataset=folk_dataset_test,
+        model=model,
+        has_reg_loss=True,
+        reg_type='rhy_complexity',
+        reg_dim=0
     )
     # tester.test_model(
     #    batch_size=batch_size

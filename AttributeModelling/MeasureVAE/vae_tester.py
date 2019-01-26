@@ -173,6 +173,46 @@ class VAETester(object):
             mean_accuracy
         )
 
+    def plot_data_attr_dist(self, dim1=0, dim2=1):
+        """
+        Plots the data distribution
+        :param dim1: int,
+        :param dim2: int,
+        :return:
+        """
+        (_, _, gen_test) = self.dataset.data_loaders(
+            batch_size=16,  # TODO: remove this hard coding
+            split=(0.8, 0.1)
+        )
+        print('Num Test Batches: ', len(gen_test))
+        z_all = []
+        rc_all = []
+        for sample_id, (score_tensor, metadata_tensor) in tqdm(enumerate(gen_test)):
+            if isinstance(self.dataset, FolkNBarDataset):
+                batch_size = score_tensor.size(0)
+                score_tensor = score_tensor.view(batch_size, self.dataset.n_bars, -1)
+                score_tensor = score_tensor.view(batch_size * self.dataset.n_bars, -1)
+                metadata_tensor = metadata_tensor.view(batch_size, self.dataset.n_bars, -1)
+                metadata_tensor = metadata_tensor.view(batch_size * self.dataset.n_bars, -1)
+            # convert input to torch Variables
+            score_tensor, metadata_tensor = (
+                to_cuda_variable_long(score_tensor),
+                to_cuda_variable_long(metadata_tensor)
+            )
+            # compute encoder forward pass
+            z_dist = self.model.encoder(score_tensor)
+            # sample from distribution
+            z_tilde = z_dist.rsample()
+            # compute attribute
+            rhy_complexity = self.dataset.get_rhy_complexity(score_tensor)
+            z_all.append(z_tilde)
+            rc_all.append(rhy_complexity)
+        z_all = to_numpy(torch.cat(z_all, 0))
+        rc_all = to_numpy(torch.cat(rc_all, 0))
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'data_dist_rhy_complexity_[' \
+        + str(dim1) + ',' + str(dim2) + '].png'
+        self.plot_dim(z_all, rc_all, filename, dim1=dim1, dim2=dim2)
+
     def plot_attribute_surface(self, dim1=0, dim2=1, grid_res=0.5):
         """
         Plots the value of an attribute over a surface defined by the dimensions
@@ -198,7 +238,6 @@ class VAETester(object):
         rc_all = []
         ie_all = []
         for i in range(num_mini_batches):
-            print(i)
             z_batch = z[i*mini_batch_size:(i+1)*mini_batch_size, :]
             dummy_score_tensor = to_cuda_variable(torch.zeros(z_batch.size(0), self.measure_seq_len))
             _, samples = self.model.decoder(

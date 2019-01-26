@@ -62,13 +62,15 @@ class VAETrainer(Trainer):
                                       targets=score)
         if self.has_reg_loss:
             if self.reg_type == 'rhy_complexity':
-                rc_tensor = self.dataset.get_rhy_complexity(score)
+                attr_tensor = self.dataset.get_rhy_complexity(score)
+            elif self.reg_type == 'int_entropy':
+                attr_tensor = self.dataset.get_interval_entropy(score)
             else:
                 raise ValueError('Invalid regularization attribute')
             x = z_tilde[:, self.reg_dim]
-            dist_loss = self.reg_loss_dist(x=x, y=rc_tensor)
+            dist_loss = self.reg_loss_dist(x=x, y=attr_tensor)
             loss += dist_loss
-            sign_loss = self.reg_loss_sign(x=x, y=rc_tensor)
+            sign_loss = self.reg_loss_sign(x=x, y=attr_tensor)
             loss += sign_loss
             if flag:
                 print(recons_loss.item(), dist_loss.item(), dist_loss.item(), sign_loss.item())

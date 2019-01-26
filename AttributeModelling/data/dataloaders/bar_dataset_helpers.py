@@ -29,6 +29,7 @@ RHY_COMPLEXITY_COEFFS = torch.from_numpy(
     )
 )
 
+
 def compute_tick_durations():
     """
     Computes the tick durations

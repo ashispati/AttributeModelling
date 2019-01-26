@@ -28,9 +28,9 @@ from AttributeModelling.utils.helpers import *
               help='int, hidden size of the decoder RNN')
 @click.option('--decoder_dropout_prob', default=0.5,
               help='float, amount got dropout prob between decoder RNN layers')
-@click.option('--batch_size', default=256,
+@click.option('--batch_size', default=512,
               help='training batch size')
-@click.option('--num_epochs', default=20,
+@click.option('--num_epochs', default=10,
               help='number of training epochs')
 @click.option('--train/--test', default=True,
               help='train or test the specified model')
@@ -40,6 +40,10 @@ from AttributeModelling.utils.helpers import *
               help='log the results for tensorboard')
 @click.option('--reg_loss/--no_reg_loss', default=True,
               help='train with regularization loss')
+@click.option('--reg_type', default='rhy_complexity',
+              help='attribute name string to be used for regularization')
+@click.option('--reg_dim', default=0,
+              help='dimension along with regularization is to be carried out')
 def main(note_embedding_dim,
          metadata_embedding_dim,
          num_encoder_layers,
@@ -55,7 +59,9 @@ def main(note_embedding_dim,
          train,
          plot,
          log,
-         reg_loss
+         reg_loss,
+         reg_type,
+         reg_dim
          ):
 
     is_short = False
@@ -92,8 +98,8 @@ def main(note_embedding_dim,
             model=model,
             lr=1e-4,
             has_reg_loss=reg_loss,
-            reg_type='rhy_complexity',
-            reg_dim=0
+            reg_type=reg_type,
+            reg_dim=reg_dim
         )
         trainer.train_model(
             batch_size=batch_size,
@@ -106,29 +112,29 @@ def main(note_embedding_dim,
         model.cuda()
         model.eval()
 
-    tester = VAETester(
-        dataset=folk_dataset_test,
-        model=model,
-        has_reg_loss=reg_loss,
-        reg_type='rhy_complexity',
-        reg_dim=0
-    )
-    # tester.test_model(
-    #    batch_size=batch_size
-    # )
-    # tester.test_interp()
-    # tester.plot_transposition_points(plt_type='tsne')
-    grid_res = 0.01
-    tester.plot_attribute_surface(
-        dim1=0,
-        dim2=56,
-        grid_res=grid_res
-    )
-    tester.plot_attribute_surface(
-        dim1=29,
-        dim2=241,
-        grid_res=grid_res
-    )
+        tester = VAETester(
+            dataset=folk_dataset_test,
+            model=model,
+            has_reg_loss=reg_loss,
+            reg_type=reg_type,
+            reg_dim=reg_dim
+        )
+        # tester.test_model(
+        #    batch_size=batch_size
+        # )
+        # tester.test_interp()
+        # tester.plot_transposition_points(plt_type='tsne')
+        grid_res = 0.01
+        tester.plot_attribute_surface(
+            dim1=0,
+            dim2=56,
+            grid_res=grid_res
+        )
+        tester.plot_attribute_surface(
+            dim1=29,
+            dim2=241,
+            grid_res=grid_res
+        )
 
 
 if __name__ == '__main__':

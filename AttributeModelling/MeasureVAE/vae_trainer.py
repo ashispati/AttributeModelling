@@ -24,6 +24,7 @@ class VAETrainer(Trainer):
             self.reg_dim = reg_dim
             self.trainer_config = '[' + self.reg_type + ',' + str(self.reg_dim) + ']'
             self.model.update_trainer_config(self.trainer_config)
+        self.warm_up_epochs = 10
         # self.scheduler = torch.optim.lr_scheduler.StepLR(
         #    optimizer=self.optimizer,
         #    step_size=30,
@@ -102,9 +103,12 @@ class VAETrainer(Trainer):
         Updates the training scheduler if any
         :param epoch_num: int,
         """
-        # gamma = 0.00018
+        gamma = 0.00495
         # if epoch_num > 0:
         #    self.beta += gamma
+        if not self.has_reg_loss:
+            if self.warm_up_epochs < epoch_num < 31:
+                self.beta += gamma
         for param_group in self.optimizer.param_groups:
             current_lr = param_group['lr']
             break

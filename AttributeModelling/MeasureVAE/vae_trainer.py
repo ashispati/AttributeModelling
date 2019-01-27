@@ -65,6 +65,8 @@ class VAETrainer(Trainer):
                 attr_tensor = self.dataset.get_rhy_complexity(score)
             elif self.reg_type == 'int_entropy':
                 attr_tensor = self.dataset.get_interval_entropy(score)
+            elif self.reg_type == 'num_notes':
+                attr_tensor = self.dataset.get_notes_density_in_measure(score)
             else:
                 raise ValueError('Invalid regularization attribute')
             x = z_tilde[:, self.reg_dim]

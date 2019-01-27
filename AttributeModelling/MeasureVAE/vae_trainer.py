@@ -68,12 +68,10 @@ class VAETrainer(Trainer):
             else:
                 raise ValueError('Invalid regularization attribute')
             x = z_tilde[:, self.reg_dim]
-            dist_loss = self.reg_loss_dist(x=x, y=attr_tensor)
-            loss += dist_loss
             sign_loss = self.reg_loss_sign(x=x, y=attr_tensor)
             loss += sign_loss
             if flag:
-                print(recons_loss.item(), dist_loss.item(), dist_loss.item(), sign_loss.item())
+                print(recons_loss.item(), dist_loss.item(), sign_loss.item())
         else:
             if flag:
                 print(recons_loss.item(), dist_loss.item())
@@ -153,16 +151,18 @@ class VAETrainer(Trainer):
         :param y: torch Variable,
         :return: scalar, loss
         """
+        # prepare data
         x = x.view(-1, 1).repeat(1, x.shape[0])
-        x_diff_sign = torch.sign(x - x.transpose(1, 0)).view(-1, 1)
-        x_diff_sign[x_diff_sign == 0.] = 1.
-        x_diff_sign[x_diff_sign == -1.] = 0.
+        x_diff_sign = (x - x.transpose(1, 0)).view(-1, 1)
+        x_diff_sign = torch.tanh(x_diff_sign)
+        # prepare labels
         y = y.view(-1, 1).repeat(1, y.shape[0])
         y_diff_sign = torch.sign(y - y.transpose(1, 0)).view(-1, 1)
-        y_diff_sign[y_diff_sign == 0.] = 1.
-        y_diff_sign[y_diff_sign == -1.] = 0.
-        bce_loss = torch.nn.BCELoss()
-        sign_loss = bce_loss(x_diff_sign, y_diff_sign)
+        # y_diff_sign[y_diff_sign == 1.] = 2.
+        # y_diff_sign[y_diff_sign == 0.] = 1.
+        # y_diff_sign[y_diff_sign == -1.] = 0.
+        loss_fn = torch.nn.L1Loss()
+        sign_loss = loss_fn(x_diff_sign, y_diff_sign)
         return sign_loss
 
     @staticmethod

@@ -62,19 +62,10 @@ class VAETrainer(Trainer):
         accuracy = self.mean_accuracy(weights=weights,
                                       targets=score)
         if self.has_reg_loss:
-            if self.reg_type == 'rhy_complexity':
-                attr_tensor = self.dataset.get_rhy_complexity(score)
-            elif self.reg_type == 'int_entropy':
-                attr_tensor = self.dataset.get_interval_entropy(score)
-            elif self.reg_type == 'num_notes':
-                attr_tensor = self.dataset.get_notes_density_in_measure(score)
-            else:
-                raise ValueError('Invalid regularization attribute')
-            x = z_tilde[:, self.reg_dim]
-            sign_loss = self.reg_loss_sign(x=x, y=attr_tensor)
-            loss += sign_loss
+            reg_loss = self.compute_reg_loss(z_tilde, score)
+            loss += reg_loss
             if flag:
-                print(recons_loss.item(), dist_loss.item(), sign_loss.item())
+                print(recons_loss.item(), dist_loss.item(), reg_loss.item())
         else:
             if flag:
                 print(recons_loss.item(), dist_loss.item())
@@ -124,6 +115,22 @@ class VAETrainer(Trainer):
         self.optimizer.step()
         # self.scheduler.step()
 
+    def compute_reg_loss(self, z, score):
+        """
+        Computes the regularization loss
+        """
+        if self.reg_type == 'rhy_complexity':
+            attr_tensor = self.dataset.get_rhy_complexity(score)
+        elif self.reg_type == 'int_entropy':
+            attr_tensor = self.dataset.get_interval_entropy(score)
+        elif self.reg_type == 'num_notes':
+            attr_tensor = self.dataset.get_notes_density_in_measure(score)
+        else:
+            raise ValueError('Invalid regularization attribute')
+        x = z[:, self.reg_dim]
+        reg_loss = self.reg_loss_sign(x=x, y=attr_tensor)
+        return reg_loss
+
     def compute_kld_loss(self, z_dist, prior_dist):
         """
 
@@ -160,7 +167,7 @@ class VAETrainer(Trainer):
         # prepare data
         x = x.view(-1, 1).repeat(1, x.shape[0])
         x_diff_sign = (x - x.transpose(1, 0)).view(-1, 1)
-        x_diff_sign = torch.tanh(x_diff_sign)
+        x_diff_sign = torch.tanh(x_diff_sign * 10)
         # prepare labels
         y = y.view(-1, 1).repeat(1, y.shape[0])
         y_diff_sign = torch.sign(y - y.transpose(1, 0)).view(-1, 1)

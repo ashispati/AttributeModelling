@@ -41,7 +41,7 @@ class VAETester(object):
             param.requires_grad = False
         self.z_dim = self.decoder.z_dim
         self.batch_size = 1
-        self.measure_seq_len = 24
+        self.measure_seq_len = 24 # TODO: remove this hardcoding
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
     def test_model(self, batch_size):

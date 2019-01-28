@@ -24,6 +24,7 @@ class VAETrainer(Trainer):
             self.reg_dim = reg_dim
             self.trainer_config = '[' + self.reg_type + ',' + str(self.reg_dim) + ']'
             self.model.update_trainer_config(self.trainer_config)
+        self.warm_up_epochs = 10
         # self.scheduler = torch.optim.lr_scheduler.StepLR(
         #    optimizer=self.optimizer,
         #    step_size=30,
@@ -65,15 +66,15 @@ class VAETrainer(Trainer):
                 attr_tensor = self.dataset.get_rhy_complexity(score)
             elif self.reg_type == 'int_entropy':
                 attr_tensor = self.dataset.get_interval_entropy(score)
+            elif self.reg_type == 'num_notes':
+                attr_tensor = self.dataset.get_notes_density_in_measure(score)
             else:
                 raise ValueError('Invalid regularization attribute')
             x = z_tilde[:, self.reg_dim]
-            dist_loss = self.reg_loss_dist(x=x, y=attr_tensor)
-            loss += dist_loss
             sign_loss = self.reg_loss_sign(x=x, y=attr_tensor)
             loss += sign_loss
             if flag:
-                print(recons_loss.item(), dist_loss.item(), dist_loss.item(), sign_loss.item())
+                print(recons_loss.item(), dist_loss.item(), sign_loss.item())
         else:
             if flag:
                 print(recons_loss.item(), dist_loss.item())
@@ -104,9 +105,12 @@ class VAETrainer(Trainer):
         Updates the training scheduler if any
         :param epoch_num: int,
         """
-        # gamma = 0.00018
+        gamma = 0.00495
         # if epoch_num > 0:
         #    self.beta += gamma
+        if not self.has_reg_loss:
+            if self.warm_up_epochs < epoch_num < 31:
+                self.beta += gamma
         for param_group in self.optimizer.param_groups:
             current_lr = param_group['lr']
             break
@@ -153,16 +157,18 @@ class VAETrainer(Trainer):
         :param y: torch Variable,
         :return: scalar, loss
         """
+        # prepare data
         x = x.view(-1, 1).repeat(1, x.shape[0])
-        x_diff_sign = torch.sign(x - x.transpose(1, 0)).view(-1, 1)
-        x_diff_sign[x_diff_sign == 0.] = 1.
-        x_diff_sign[x_diff_sign == -1.] = 0.
+        x_diff_sign = (x - x.transpose(1, 0)).view(-1, 1)
+        x_diff_sign = torch.tanh(x_diff_sign)
+        # prepare labels
         y = y.view(-1, 1).repeat(1, y.shape[0])
         y_diff_sign = torch.sign(y - y.transpose(1, 0)).view(-1, 1)
-        y_diff_sign[y_diff_sign == 0.] = 1.
-        y_diff_sign[y_diff_sign == -1.] = 0.
-        bce_loss = torch.nn.BCELoss()
-        sign_loss = bce_loss(x_diff_sign, y_diff_sign)
+        # y_diff_sign[y_diff_sign == 1.] = 2.
+        # y_diff_sign[y_diff_sign == 0.] = 1.
+        # y_diff_sign[y_diff_sign == -1.] = 0.
+        loss_fn = torch.nn.L1Loss()
+        sign_loss = loss_fn(x_diff_sign, y_diff_sign)
         return sign_loss
 
     @staticmethod

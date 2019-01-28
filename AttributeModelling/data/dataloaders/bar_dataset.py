@@ -457,7 +457,8 @@ class FolkBarDataset:
         start_count = torch.sum(measure_tensor == start_index, 1)
         end_count = torch.sum(measure_tensor == end_index, 1)
         note_count = measure_seq_len - (slur_count + rest_count + start_count + end_count)
-        return note_count.float() / float(measure_seq_len)
+        note_density = to_cuda_variable(note_count.float() / measure_seq_len)
+        return note_density
 
     def get_note_range_of_measure(self, measure_tensor):
         """

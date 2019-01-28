@@ -28,9 +28,9 @@ from AttributeModelling.utils.helpers import *
               help='int, hidden size of the decoder RNN')
 @click.option('--decoder_dropout_prob', default=0.5,
               help='float, amount got dropout prob between decoder RNN layers')
-@click.option('--batch_size', default=512,
+@click.option('--batch_size', default=256,
               help='training batch size')
-@click.option('--num_epochs', default=10,
+@click.option('--num_epochs', default=30,
               help='number of training epochs')
 @click.option('--train/--test', default=True,
               help='train or test the specified model')

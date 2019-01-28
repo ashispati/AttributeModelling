@@ -173,11 +173,12 @@ class VAETester(object):
             mean_accuracy
         )
 
-    def plot_data_attr_dist(self, dim1=0, dim2=1):
+    def plot_data_attr_dist(self, dim1=0, dim2=1, reg_type='rhy_complexity'):
         """
         Plots the data distribution
         :param dim1: int,
         :param dim2: int,
+        :param reg_type: str,
         :return:
         """
         (_, _, gen_test) = self.dataset.data_loaders(
@@ -204,12 +205,15 @@ class VAETester(object):
             # sample from distribution
             z_tilde = z_dist.rsample()
             # compute attribute
-            rhy_complexity = self.dataset.get_rhy_complexity(score_tensor)
+            if reg_type == 'rhy_complexity':
+                attr = self.dataset.get_rhy_complexity(score_tensor)
+            elif reg_type == 'num_notes':
+                attr = self.dataset.get_notes_density_in_measure(score_tensor)
             z_all.append(z_tilde)
-            rc_all.append(rhy_complexity)
+            rc_all.append(attr)
         z_all = to_numpy(torch.cat(z_all, 0))
         rc_all = to_numpy(torch.cat(rc_all, 0))
-        filename = self.dir_path + '/plots/' + self.trainer_config + 'data_dist_rhy_complexity_[' \
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'data_dist_' + reg_type + '_[' \
         + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z_all, rc_all, filename, dim1=dim1, dim2=dim2)
 

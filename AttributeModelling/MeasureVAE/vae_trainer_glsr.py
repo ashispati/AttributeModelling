@@ -20,6 +20,7 @@ class VAETrainerGLSR(VAETrainer):
             reg_dim
         )
         self.trainer_config += 'GLSR'
+        self.model.update_trainer_config(self.trainer_config)
         self.note_tensor = self.is_note_tensor()
 
     def is_note_tensor(self):

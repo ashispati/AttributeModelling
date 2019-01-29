@@ -34,8 +34,8 @@ class MeasureVAE(nn.Module):
         """
         super(MeasureVAE, self).__init__()
         # define constants
-        self.num_beats_per_measure = 4
-        self.num_ticks_per_measure = 24
+        self.num_beats_per_measure = 4  # TODO: remove this hardcoding
+        self.num_ticks_per_measure = 24 # TODO: remove this hardcoding
         self.num_ticks_per_beat = int(self.num_ticks_per_measure / self.num_beats_per_measure)
 
         # initialize members

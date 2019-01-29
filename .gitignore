@@ -1,6 +1,7 @@
 # Folders
 runs/
 good_models/
+good_plots/
 models/
 plots/
 raw_data/

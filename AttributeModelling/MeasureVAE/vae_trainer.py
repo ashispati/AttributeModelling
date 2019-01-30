@@ -22,6 +22,8 @@ class VAETrainer(Trainer):
             if reg_type is not None:
                 self.reg_type = reg_type
             self.reg_dim = reg_dim
+            if self.reg_type == 'joint':
+                self.reg_dim = [0, 1]
             self.trainer_config = '[' + self.reg_type + ',' + str(self.reg_dim) + ']'
             self.model.update_trainer_config(self.trainer_config)
         self.warm_up_epochs = 10
@@ -125,6 +127,13 @@ class VAETrainer(Trainer):
             attr_tensor = self.dataset.get_interval_entropy(score)
         elif self.reg_type == 'num_notes':
             attr_tensor = self.dataset.get_notes_density_in_measure(score)
+        elif self.reg_type == 'joint':
+            attr1_tensor = self.dataset.get_rhy_complexity(score)
+            attr2_tensor = self.dataset.get_notes_density_in_measure(score)
+            x1 = z[:, self.reg_dim[0]]
+            x2 = z[:, self.reg_dim[1]]
+            reg_loss = self.reg_loss_sign(x1, attr1_tensor) + self.reg_loss_sign(x2, attr2_tensor)
+            return reg_loss
         else:
             raise ValueError('Invalid regularization attribute')
         x = z[:, self.reg_dim]

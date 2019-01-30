@@ -124,7 +124,7 @@ def main(note_embedding_dim,
         # )
         # tester.test_interp()
         # tester.plot_transposition_points(plt_type='tsne')
-        grid_res = 0.01
+        grid_res = 0.05
         tester.plot_data_attr_dist(
             dim1=0,
             dim2=1,
@@ -132,7 +132,7 @@ def main(note_embedding_dim,
         )
         tester.plot_attribute_surface(
             dim1=0,
-            dim2=56,
+            dim2=1,
             grid_res=grid_res
         )
         tester.plot_attribute_surface(

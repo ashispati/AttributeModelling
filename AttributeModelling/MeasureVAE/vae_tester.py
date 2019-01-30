@@ -226,8 +226,8 @@ class VAETester(object):
         :return:
         """
         # create the dataspace
-        x1 = torch.arange(-0.5, 0.5, grid_res)
-        x2 = torch.arange(-0.5, 0.5, grid_res)
+        x1 = torch.arange(-5., 5., grid_res)
+        x2 = torch.arange(-5., 5., grid_res)
         z1, z2 = torch.meshgrid([x1, x2])
         num_points = z1.size(0) * z1.size(1)
         z = torch.randn(num_points, self.model.latent_space_dim)
@@ -240,8 +240,8 @@ class VAETester(object):
         nd_all = []
         nr_all = []
         rc_all = []
-        ie_all = []
-        for i in range(num_mini_batches):
+        # ie_all = []
+        for i in tqdm(range(num_mini_batches)):
             z_batch = z[i*mini_batch_size:(i+1)*mini_batch_size, :]
             dummy_score_tensor = to_cuda_variable(torch.zeros(z_batch.size(0), self.measure_seq_len))
             _, samples = self.model.decoder(
@@ -253,15 +253,15 @@ class VAETester(object):
             note_density = self.dataset.get_notes_density_in_measure(samples)
             note_range = self.dataset.get_note_range_of_measure(samples)
             rhy_complexity = self.dataset.get_rhy_complexity(samples)
-            interval_entropy = self.dataset.get_interval_entropy(samples)
+            # interval_entropy = self.dataset.get_interval_entropy(samples)
             nd_all.append(note_density)
             nr_all.append(note_range)
             rc_all.append(rhy_complexity)
-            ie_all.append(interval_entropy)
+            # ie_all.append(interval_entropy)
         nd_all = to_numpy(torch.cat(nd_all, 0))
         nr_all = to_numpy(torch.cat(nr_all, 0))
         rc_all = to_numpy(torch.cat(rc_all, 0))
-        ie_all = to_numpy(torch.cat(ie_all, 0))
+        # ie_all = to_numpy(torch.cat(ie_all, 0))
         z = to_numpy(z)
         filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_note_density_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
@@ -272,9 +272,9 @@ class VAETester(object):
         filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_rhy_complexity_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z, rc_all, filename, dim1=dim1, dim2=dim2)
-        filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_int_entropy_[' \
-                   + str(dim1) + ',' + str(dim2) + '].png'
-        self.plot_dim(z, ie_all, filename, dim1=dim1, dim2=dim2)
+        # filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_int_entropy_[' \
+        #           + str(dim1) + ',' + str(dim2) + '].png'
+        # self.plot_dim(z, ie_all, filename, dim1=dim1, dim2=dim2)
 
     def plot_attribute_dist(self, attribute='num_notes', plt_type='pca'):
         """
@@ -430,6 +430,7 @@ class VAETester(object):
         plt.savefig(filename, format='png', dpi=300)
         # plt.show()
         plt.close()
+        print('saved: ' + filename)
 
     @staticmethod
     def get_cmap(n, name='hsv'):

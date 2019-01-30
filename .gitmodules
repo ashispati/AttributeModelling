@@ -1,0 +1,3 @@
+[submodule "AttributeModelling/VarNet"]
+	path = AttributeModelling/VarNet
+	url = https://github.com/ashispati/VarNet.git

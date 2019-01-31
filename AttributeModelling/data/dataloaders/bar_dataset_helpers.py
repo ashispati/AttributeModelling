@@ -143,6 +143,10 @@ def standard_note(note_or_rest_string):
         return note.Rest()
     elif note_or_rest_string == SLUR_SYMBOL:
         return note.Rest()
+    elif note_or_rest_string == START_SYMBOL:
+        return note.Rest()
+    elif note_or_rest_string == END_SYMBOL:
+        return note.Rest()
     else:
         return note.Note(note_or_rest_string)
 

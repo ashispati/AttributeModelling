@@ -125,6 +125,19 @@ class VAETester(object):
         # score = self.dataset.tensor_to_score(tensor_score.cpu())
         return tensor_score
 
+    def test_attr_reg_interpolations(self, num_points=10, dim=0, num_interps=20):
+        for i in range(num_points):
+            z = torch.randn(1, self.model.latent_space_dim)
+            z1 = z.clone()
+            z2 = z.clone()
+            z1[:, dim] = -3.
+            z2[:, dim] = 3.
+            z1 = to_cuda_variable(z1)
+            z2 = to_cuda_variable(z2)
+            tensor_score = self.decode_mid_point(z1, z2, num_interps)
+            score = self.dataset.tensor_to_m21score(tensor_score.cpu())
+            score.show()
+
     def loss_and_acc_test(self, data_loader):
         """
         Computes loss and accuracy for test data
@@ -230,7 +243,8 @@ class VAETester(object):
         x2 = torch.arange(-5., 5., grid_res)
         z1, z2 = torch.meshgrid([x1, x2])
         num_points = z1.size(0) * z1.size(1)
-        z = torch.randn(num_points, self.model.latent_space_dim)
+        z = torch.randn(1, self.model.latent_space_dim)
+        z = z.repeat(num_points, 1)
         z[:, dim1] = z1.contiguous().view(1, -1)
         z[:, dim2] = z2.contiguous().view(1, -1)
         z = to_cuda_variable(z)

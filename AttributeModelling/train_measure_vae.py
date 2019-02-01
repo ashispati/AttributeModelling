@@ -132,7 +132,6 @@ def main(note_embedding_dim,
             tester.plot_data_attr_dist(
                 dim1=0,
                 dim2=1,
-                reg_type=reg_type
             )
             tester.plot_attribute_surface(
                 dim1=0,

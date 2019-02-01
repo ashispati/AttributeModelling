@@ -27,6 +27,8 @@ class VAETester(object):
             if reg_type is not None:
                 self.reg_type = reg_type
             self.reg_dim = reg_dim
+            if self.reg_type == 'joint':
+                self.reg_dim = [0, 1]
             self.trainer_config = '[' + self.reg_type + ',' + str(self.reg_dim) + ']'
             self.model.update_trainer_config(self.trainer_config)
             self.model.load()
@@ -200,6 +202,8 @@ class VAETester(object):
         )
         print('Num Test Batches: ', len(gen_test))
         z_all = []
+        nd_all = []
+        nr_all = []
         rc_all = []
         for sample_id, (score_tensor, metadata_tensor) in tqdm(enumerate(gen_test)):
             if isinstance(self.dataset, FolkNBarDataset):
@@ -217,17 +221,27 @@ class VAETester(object):
             z_dist = self.model.encoder(score_tensor)
             # sample from distribution
             z_tilde = z_dist.rsample()
-            # compute attribute
-            if reg_type == 'rhy_complexity':
-                attr = self.dataset.get_rhy_complexity(score_tensor)
-            elif reg_type == 'num_notes':
-                attr = self.dataset.get_notes_density_in_measure(score_tensor)
+
+            # compute attributes
+            rc = self.dataset.get_rhy_complexity(score_tensor)
+            nd = self.dataset.get_notes_density_in_measure(score_tensor)
+            nr = self.dataset.get_note_range_of_measure(score_tensor)
             z_all.append(z_tilde)
-            rc_all.append(attr)
+            rc_all.append(rc)
+            nd_all.append(nd)
+            nr_all.append(nr)
         z_all = to_numpy(torch.cat(z_all, 0))
         rc_all = to_numpy(torch.cat(rc_all, 0))
-        filename = self.dir_path + '/plots/' + self.trainer_config + 'data_dist_' + reg_type + '_[' \
-        + str(dim1) + ',' + str(dim2) + '].png'
+        nd_all = to_numpy(torch.cat(nd_all, 0))
+        nr_all = to_numpy(torch.cat(nr_all, 0))
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'data_dist_note_density_[' \
+                   + str(dim1) + ',' + str(dim2) + '].png'
+        self.plot_dim(z_all, nd_all, filename, dim1=dim1, dim2=dim2)
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'data_dist_note_range_[' \
+                   + str(dim1) + ',' + str(dim2) + '].png'
+        self.plot_dim(z_all, nr_all, filename, dim1=dim1, dim2=dim2)
+        filename = self.dir_path + '/plots/' + self.trainer_config + 'data_dist_rhy_complexity_[' \
+                   + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z_all, rc_all, filename, dim1=dim1, dim2=dim2)
 
     def plot_attribute_surface(self, dim1=0, dim2=1, grid_res=0.5):

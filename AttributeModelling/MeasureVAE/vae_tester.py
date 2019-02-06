@@ -1,5 +1,4 @@
 from random import randint
-from AttributeModelling.utils.helpers import *
 from AttributeModelling.data.dataloaders.bar_dataset import *
 from AttributeModelling.data.dataloaders.bar_dataset_helpers import *
 from AttributeModelling.MeasureVAE.measure_vae import MeasureVAE
@@ -219,9 +218,13 @@ class VAETester(object):
             attr_all.append(attr)
         z_all = to_numpy(torch.cat(z_all, 0))
         attr_all = to_numpy(torch.cat(attr_all, 0))
-        filename = self.dir_path + '/plots/' + self.trainer_config + 'data_dist_' + reg_type + '_[' \
+        if self.trainer_config == '':
+            reg_str = '[no_reg]'
+        else:
+            reg_str = self.trainer_config
+        filename = self.dir_path + '/plots/' + reg_str + 'data_dist_' + reg_type + '_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
-        self.plot_dim(z_all, attr_all, filename, dim1=dim1, dim2=dim2)
+        self.plot_dim(z_all, attr_all, filename, dim1=dim1, dim2=dim2, xlim=6, ylim=6)
 
     def plot_data_attr_dist(self, dim1=0, dim2=1):
         """
@@ -232,7 +235,7 @@ class VAETester(object):
         """
         (_, _, gen_test) = self.dataset.data_loaders(
             batch_size=16,  # TODO: remove this hard coding
-            split=(0.2, 0.2)
+            split=(0.7, 0.15)
         )
         print('Num Test Batches: ', len(gen_test))
         self._plot_data_attr_dist(gen_test, dim1, dim2, 'rhy_complexity')
@@ -286,18 +289,19 @@ class VAETester(object):
         rc_all = to_numpy(torch.cat(rc_all, 0))
         # ie_all = to_numpy(torch.cat(ie_all, 0))
         z = to_numpy(z)
-        filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_note_density_[' \
+        if self.trainer_config == '':
+            reg_str = '[no_reg]'
+        else:
+            reg_str = self.trainer_config
+        filename = self.dir_path + '/plots/' + reg_str + 'attr_surf_note_density_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z, nd_all, filename, dim1=dim1, dim2=dim2)
-        filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_note_range_[' \
+        filename = self.dir_path + '/plots/' + reg_str + 'attr_surf_note_range_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z, nr_all, filename, dim1=dim1, dim2=dim2)
-        filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_rhy_complexity_[' \
+        filename = self.dir_path + '/plots/' + reg_str + 'attr_surf_rhy_complexity_[' \
                    + str(dim1) + ',' + str(dim2) + '].png'
         self.plot_dim(z, rc_all, filename, dim1=dim1, dim2=dim2)
-        # filename = self.dir_path + '/plots/' + self.trainer_config + 'attr_surf_int_entropy_[' \
-        #           + str(dim1) + ',' + str(dim2) + '].png'
-        # self.plot_dim(z, ie_all, filename, dim1=dim1, dim2=dim2)
 
     def plot_attribute_dist(self, attribute='num_notes', plt_type='pca'):
         """
@@ -439,7 +443,11 @@ class VAETester(object):
         plt.close()
 
     @staticmethod
-    def plot_dim(data, target, filename, dim1=0, dim2=1):
+    def plot_dim(data, target, filename, dim1=0, dim2=1, xlim=None, ylim=None):
+        if xlim is not None:
+            plt.xlim(-xlim, xlim)
+        if ylim is not None:
+            plt.ylim(-ylim, ylim)
         plt.scatter(
             x=data[:, dim1],
             y=data[:, dim2],
@@ -447,7 +455,7 @@ class VAETester(object):
             s=12,
             linewidths=0,
             cmap="viridis",
-            alpha=0.8
+            alpha=0.5
         )
         plt.colorbar()
         plt.savefig(filename, format='png', dpi=300)

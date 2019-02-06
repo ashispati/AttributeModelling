@@ -138,14 +138,14 @@ def main(note_embedding_dim,
                 dim2=1,
                 grid_res=grid_res
             )
-            tester.plot_attribute_surface(
-                dim1=29,
-                dim2=241,
-                grid_res=grid_res
-            )
+            # tester.plot_attribute_surface(
+            #    dim1=29,
+            #    dim2=241,
+            #    grid_res=grid_res
+            # )
         else:
             tester.test_attr_reg_interpolations(
-                dim=reg_dim,
+                dim=1,
             )
 
 

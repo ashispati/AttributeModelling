@@ -2,6 +2,7 @@
 runs/
 good_models/
 good_plots/
+interpolations/
 models/
 plots/
 raw_data/

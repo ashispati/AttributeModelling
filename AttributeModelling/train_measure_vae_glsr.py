@@ -1,8 +1,7 @@
 import click
 
-from AttributeModelling.MeasureVAE.measure_vae import MeasureVAE
-from AttributeModelling.MeasureVAE.vae_trainer_glsr import VAETrainerGLSR
-from AttributeModelling.MeasureVAE.vae_tester import VAETester
+from AttributeModelling.MeasureVAE.vae_trainer_glsr import *
+from AttributeModelling.MeasureVAE.vae_tester_glsr import *
 from AttributeModelling.data.dataloaders.bar_dataset import *
 from AttributeModelling.utils.helpers import *
 
@@ -44,6 +43,8 @@ from AttributeModelling.utils.helpers import *
               help='attribute name string to be used for regularization')
 @click.option('--reg_dim', default=0,
               help='dimension along with regularization is to be carried out')
+@click.option('--attr_plot/--no_attr_plot', default=True,
+              help='if True plots the attribute dsitributions, else produces interpolations')
 def main(note_embedding_dim,
          metadata_embedding_dim,
          num_encoder_layers,
@@ -61,7 +62,8 @@ def main(note_embedding_dim,
          log,
          reg_loss,
          reg_type,
-         reg_dim
+         reg_dim,
+         attr_plot
          ):
 
     is_short = False
@@ -112,7 +114,7 @@ def main(note_embedding_dim,
         model.cuda()
         model.eval()
 
-        tester = VAETester(
+        tester = VAETesterGLSR(
             dataset=folk_dataset_test,
             model=model,
             has_reg_loss=reg_loss,
@@ -124,22 +126,26 @@ def main(note_embedding_dim,
         # )
         # tester.test_interp()
         # tester.plot_transposition_points(plt_type='tsne')
-        grid_res = 0.01
-        tester.plot_data_attr_dist(
-            dim1=0,
-            dim2=1,
-            reg_type=reg_type
-        )
-        tester.plot_attribute_surface(
-            dim1=0,
-            dim2=56,
-            grid_res=grid_res
-        )
-        tester.plot_attribute_surface(
-            dim1=29,
-            dim2=241,
-            grid_res=grid_res
-        )
+        if attr_plot:
+            grid_res = 0.05
+            tester.plot_data_attr_dist(
+                dim1=0,
+                dim2=1,
+            )
+            tester.plot_attribute_surface(
+                dim1=0,
+                dim2=1,
+                grid_res=grid_res
+            )
+            # tester.plot_attribute_surface(
+            #    dim1=29,
+            #    dim2=241,
+            #    grid_res=grid_res
+            # )
+        else:
+            tester.test_attr_reg_interpolations(
+                dim=reg_dim,
+            )
 
 
 if __name__ == '__main__':

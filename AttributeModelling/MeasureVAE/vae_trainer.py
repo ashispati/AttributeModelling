@@ -127,6 +127,8 @@ class VAETrainer(Trainer):
             attr_tensor = self.dataset.get_interval_entropy(score)
         elif self.reg_type == 'num_notes':
             attr_tensor = self.dataset.get_notes_density_in_measure(score)
+        elif self.reg_type == 'note_range':
+            attr_tensor = self.dataset.get_note_range_of_measure(score)
         elif self.reg_type == 'joint':
             attr1_tensor = self.dataset.get_rhy_complexity(score)
             attr2_tensor = self.dataset.get_notes_density_in_measure(score)

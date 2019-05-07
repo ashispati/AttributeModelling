@@ -18,7 +18,7 @@ The regression scores (higher is better) are shown in the table below:
 
 | Model Type 	| Rhythmic Complexity 	| Pitch Range 	| Average  	|
 |------------	|---------------------	|-------------	|----------	|
-| RHY        	| 0.8364              	| 1.13E-06    	| 0.42     	|
+| RHY        	| 0.8364              	| 1.1E-06    	  | 0.42     	|
 | PR         	| 0.014               	| 0.9625      	| 0.49     	|
 | RHY-PR     	| 0.8339              	| 0.9681      	| 0.90     	|
-| Base       	| 4.23E-07            	| 1.54E-05    	| 7.90E-06 	|
+| Base       	| 4.2E-07            	  | 1.5E-05    	  | 7.9E-06 	|

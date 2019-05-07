@@ -122,31 +122,33 @@ def main(note_embedding_dim,
             reg_type=reg_type,
             reg_dim=reg_dim
         )
-        # tester.test_model(
-        #    batch_size=batch_size
-        # )
+        dim, score = tester.test_interpretability(
+            batch_size=batch_size,
+            attr_type='note_range'
+        )
+        print(dim, score)
         # tester.test_interp()
         # tester.plot_transposition_points(plt_type='tsne')
-        if attr_plot:
-            grid_res = 0.05
-            tester.plot_data_attr_dist(
-                dim1=0,
-                dim2=1,
-            )
-            tester.plot_attribute_surface(
-                dim1=0,
-                dim2=1,
-                grid_res=grid_res
-            )
-            # tester.plot_attribute_surface(
-            #    dim1=29,
-            #    dim2=241,
-            #    grid_res=grid_res
-            # )
-        else:
-            tester.test_attr_reg_interpolations(
-                dim=1,
-            )
+        # if attr_plot:
+        #    grid_res = 0.05
+        #    tester.plot_data_attr_dist(
+        #        dim1=0,
+        #       dim2=2,
+        #    )
+        #    tester.plot_attribute_surface(
+        #        dim1=0,
+        #        dim2=2,
+        #        grid_res=grid_res
+        #    )
+        # tester.plot_attribute_surface(
+        #    dim1=29,
+        #    dim2=241,
+        #    grid_res=grid_res
+        # )
+        # else:
+        #    tester.test_attr_reg_interpolations(
+        #        dim=1,
+        #    )
 
 
 if __name__ == '__main__':

@@ -5,6 +5,8 @@ from AttributeModelling.MeasureVAE.measure_vae import MeasureVAE
 from AttributeModelling.MeasureVAE.vae_trainer import VAETrainer
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
+from sklearn.metrics import mutual_info_score
+from sklearn.linear_model import LogisticRegression, LinearRegression
 import matplotlib.pyplot as plt
 
 
@@ -28,6 +30,8 @@ class VAETester(object):
             self.reg_dim = reg_dim
             if self.reg_type == 'joint':
                 self.reg_dim = [0, 1]
+            if self.reg_type == 'joint_rhycomp_noterange':
+                self.reg_dim = [0, 2]
             self.trainer_config = '[' + self.reg_type + ',' + str(self.reg_dim) + ']'
             self.model.update_trainer_config(self.trainer_config)
             self.model.load()
@@ -44,6 +48,61 @@ class VAETester(object):
         self.batch_size = 1
         self.measure_seq_len = 24 # TODO: remove this hardcoding
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
+
+    def test_interpretability(self, batch_size, attr_type):
+        """
+        Tests the interpretability of the latent space for a partcular attribute
+        :param batch_size: int, number of datapoints in mini-batch
+        :param attr_type: str, attribute type
+        :return: tuple(int, float): index of dimension with highest mutual info, interpretability score
+        """
+        (_, gen_val, gen_test) = self.dataset.data_loaders(
+            batch_size=batch_size,
+            split=(0.01, 0.01)
+        )
+
+        # compute latent vectors and attribute values
+        z_all = []
+        attr_all = []
+        for sample_id, (score_tensor, metadata_tensor) in tqdm(enumerate(gen_test)):
+            if isinstance(self.dataset, FolkNBarDataset):
+                batch_size = score_tensor.size(0)
+                score_tensor = score_tensor.view(batch_size, self.dataset.n_bars, -1)
+                score_tensor = score_tensor.view(batch_size * self.dataset.n_bars, -1)
+                metadata_tensor = metadata_tensor.view(batch_size, self.dataset.n_bars, -1)
+                metadata_tensor = metadata_tensor.view(batch_size * self.dataset.n_bars, -1)
+            # convert input to torch Variables
+            score_tensor, metadata_tensor = (
+                to_cuda_variable_long(score_tensor),
+                to_cuda_variable_long(metadata_tensor)
+            )
+            # compute encoder forward pass
+            z_dist = self.model.encoder(score_tensor)
+            # sample from distribution
+            z_tilde = z_dist.rsample()
+
+            # compute attributes
+            if attr_type == 'rhy_complexity':
+                attr = self.dataset.get_rhy_complexity(score_tensor)
+            elif attr_type == 'num_notes':
+                attr = self.dataset.get_notes_density_in_measure(score_tensor)
+            elif attr_type == 'note_range':
+                attr = self.dataset.get_note_range_of_measure(score_tensor)
+            z_all.append(to_numpy(z_tilde.cpu()))
+            attr_all.append(to_numpy(attr.cpu()))
+        z_all = np.concatenate(z_all)
+        attr_all = np.concatenate(attr_all)
+
+        # compute mutual information
+        mutual_info = np.zeros(self.z_dim)
+        for i in tqdm(range(self.z_dim)):
+            mutual_info[i] = mutual_info_score(z_all[:, i], attr_all)
+        dim = np.argmax(mutual_info)
+        max_mutual_info = np.max(mutual_info)
+
+        reg = LinearRegression().fit(z_all[:, dim:dim+1], attr_all)
+        score = reg.score(z_all[:, dim:dim+1], attr_all)
+        return dim, score
 
     def test_model(self, batch_size):
         """

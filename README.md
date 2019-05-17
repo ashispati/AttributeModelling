@@ -17,6 +17,7 @@ All the model variants were trained using the same parameters to ensure consiste
 * Learning Rate: `1e-4`
 * Batch-Size: `256`
 * Number of Epochs: `30`
+* Beta (for VAE training): `1e-3`
 
 ### Interpretability Metric
 The scores were computed using the method proposed by [Adel et al.](http://proceedings.mlr.press/v80/adel18a.html). The computation steps are:

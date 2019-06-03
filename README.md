@@ -5,7 +5,7 @@ Code for the paper: **Latent Space Regularization for Explicit Control of Musica
 
 ## Installation and Use
 1. Requires `python3.x` and `pytorch1.0.0`
-2. Download or clone this repository. Navigate to the root folder and run `python install setup.py`.
+2. Download or clone this repository. Navigate to the root folder and run `python setup.py install`.
 3. Download the folder linked [here](https://drive.google.com/open?id=1sh5zXo-D5AyaamJ_k1ZmHop3EDEE5CJU). Unzip it and place the `datasets` and `folk_raw_data` folders in the `AttributeModelling/data` folder.
 4. Run the `train_measure_vae.py` script with appropriate arguments to train or test the models.
 

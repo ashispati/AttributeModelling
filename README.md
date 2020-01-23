@@ -3,7 +3,7 @@
 ## AttributeModelling
 
 ### About
-Code for the paper: **Latent Space Regularization for Explicit Control of Musical Attributes**. Implements the models and regularization technique to encode selected musical attributes along specific dimensions of the latent of a VAE trained to reconstruct individual measures of music. 
+Code for the paper: **Latent Space Regularization for Explicit Control of Musical Attributes**. Implements the models and regularization technique to encode selected musical attributes along specific dimensions of the latent space of a VAE (Variational Auto-Encoder)-based model trained to reconstruct individual measures of music. 
 
 ### Installation and Use
 1. Requires `python3.x` and `pytorch1.0.0`

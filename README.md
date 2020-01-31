@@ -37,6 +37,8 @@ The regression scores (higher is better) are shown in the table below:
 | RHY-PR     	| 0.8339              	| 0.9681      	| 0.90     	|
 | Base       	| 4.2E-07            	  | 1.5E-05    	  | 7.9E-06 	|
 
+In our experiments, we found that `r` corresponded to the regularized dimension for attribute `a` for all the regularized models.
+
 ### Attribution
 
 This research work is published as as conference paper at the ICML ML4MD Workshop, 2019.
